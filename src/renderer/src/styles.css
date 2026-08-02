@@ -56,9 +56,33 @@ body {
 }
 
 .app {
-  display: grid;
-  grid-template-rows: 48px 1fr;
+  display: flex;
+  flex-direction: column;
   height: 100%;
+}
+.topbar {
+  flex-shrink: 0;
+  height: 48px;
+}
+.main {
+  flex: 1;
+}
+
+.hooks-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(229, 168, 59, 0.08);
+  border-bottom: 1px solid var(--line);
+  color: var(--amber);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.hooks-note {
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10.5px;
 }
 
 /* ── Top bar ──────────────────────────────────────────────────────────── */

@@ -1,13 +1,67 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
+import { spawn } from 'node:child_process'
 import * as path from 'node:path'
 import { InstanceStore } from './instance-store'
 import { PtyManager } from './pty-manager'
+import { HookServer, type HookEvent } from './hook-server'
+import { hooksInstalled, installHooks } from './hook-installer'
 import { recentProjects, recentSessions } from './recents'
 import type { LaunchRequest } from '../shared/types'
 
 const store = new InstanceStore()
 const ptys = new PtyManager()
+const hookServer = new HookServer()
 let win: BrowserWindow | null = null
+
+const LONG_TURN_MS = 30_000
+
+function notify(title: string, body: string, sessionId: string): void {
+  if (!Notification.isSupported()) return
+  const n = new Notification({ title, body, silent: false })
+  n.on('click', () => {
+    win?.show()
+    win?.focus()
+    broadcast('ui:select-session', sessionId)
+  })
+  n.show()
+}
+
+function shouldToast(sessionId: string): boolean {
+  // stay quiet when the user is already looking at this instance
+  return !(win?.isFocused() && lastSelectedSession === sessionId)
+}
+
+let lastSelectedSession: string | null = null
+
+function onHook(ev: HookEvent): void {
+  const inst = store.get(ev.sessionId)
+  switch (ev.kind) {
+    case 'notification': {
+      const reason = ev.message || 'needs your input'
+      store.setNeedsYou(ev.sessionId, reason)
+      if (shouldToast(ev.sessionId)) {
+        notify(`${inst?.name ?? 'Claude'} needs you`, reason, ev.sessionId)
+      }
+      break
+    }
+    case 'stop': {
+      const turnStartedAt = inst?.now.turnStartedAt
+      store.clearNeedsYou(ev.sessionId, 'idle')
+      if (
+        inst &&
+        turnStartedAt &&
+        Date.now() - turnStartedAt > LONG_TURN_MS &&
+        shouldToast(ev.sessionId)
+      ) {
+        notify(`${inst.name} finished`, inst.now.title || 'Turn complete', ev.sessionId)
+      }
+      break
+    }
+    case 'prompt':
+      store.clearNeedsYou(ev.sessionId, 'busy')
+      break
+  }
+}
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -44,9 +98,12 @@ function broadcast(channel: string, ...args: unknown[]): void {
 }
 
 app.whenReady().then(() => {
+  app.setAppUserModelId('com.lkg.claude-fleet') // Windows toast identity
   store.setEmbeddedPidSource(() => ptys.pids())
   store.start()
   store.on('snapshot', (snap) => broadcast('fleet:snapshot', snap))
+  hookServer.start()
+  hookServer.on('hook', onHook)
 
   ptys.on('data', (ptyId: string, data: string) => broadcast('pty:data', ptyId, data))
   ptys.on('exit', (ptyId: string, exitCode: number) => broadcast('pty:exit', ptyId, exitCode))
@@ -81,12 +138,23 @@ app.whenReady().then(() => {
     return res.canceled ? null : res.filePaths[0]
   })
 
+  // ── hooks ────────────────────────────────────────────────────────────
+  ipcMain.handle('hooks:status', () => hooksInstalled())
+  ipcMain.handle('hooks:install', () => installHooks())
+  ipcMain.on('ui:selected', (_e, sessionId: string | null) => {
+    lastSelectedSession = sessionId
+  })
+
   // ── misc ─────────────────────────────────────────────────────────────
   ipcMain.handle('open:external', (_e, url: string) => {
     if (typeof url === 'string' && /^https?:\/\//.test(url)) shell.openExternal(url)
   })
   ipcMain.handle('open:path', (_e, p: string) => {
     if (typeof p === 'string') shell.openPath(p)
+  })
+  ipcMain.handle('open:vscode', (_e, p: string) => {
+    if (typeof p !== 'string') return
+    spawn('cmd.exe', ['/c', 'code', p], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
   })
 
   createWindow()

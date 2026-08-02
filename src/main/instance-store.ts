@@ -91,13 +91,26 @@ export class InstanceStore extends EventEmitter {
     return { instances, updatedAt: Date.now() }
   }
 
-  /** Mark a session as waiting on the user (hook / PTY detection — later phases). */
+  /** Mark a session as waiting on the user (from the Notification hook). */
   setNeedsYou(sessionId: string, reason: string): void {
     const t = this.tracked.get(sessionId)
     if (!t || t.instance.state === 'dead') return
     t.instance.state = 'needs-you'
     t.instance.now.activity = `Waiting: ${reason}`
     this.queueBroadcast()
+  }
+
+  /** The user responded (prompt submitted) or the turn ended — stop flagging. */
+  clearNeedsYou(sessionId: string, nextState: 'busy' | 'idle'): void {
+    const t = this.tracked.get(sessionId)
+    if (!t || t.instance.state !== 'needs-you') return
+    t.instance.state = nextState
+    if (nextState === 'busy') t.instance.now.activity = 'Thinking…'
+    this.queueBroadcast()
+  }
+
+  get(sessionId: string): Instance | null {
+    return this.tracked.get(sessionId)?.instance ?? null
   }
 
   // -------------------------------------------------------------------------

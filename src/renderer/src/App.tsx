@@ -20,18 +20,27 @@ export default function App(): React.JSX.Element {
   const [showLaunch, setShowLaunch] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
 
+  const [hooksOk, setHooksOk] = useState(true)
+
   useEffect(() => {
     window.fleet.getFleet().then(setSnap)
     window.fleet.ptyList().then(setPtyRefs) // survive renderer reloads
+    window.fleet.hooksStatus().then(setHooksOk)
     const offFleet = window.fleet.onFleet(setSnap)
     const offExit = window.fleet.onPtyExit(() => window.fleet.ptyList().then(setPtyRefs))
+    const offSelect = window.fleet.onSelectSession((sessionId) => {
+      setSelectedId(sessionId)
+      setShowInfo(false)
+    })
     const tick = setInterval(() => setNow(Date.now()), 1000)
     return () => {
       offFleet()
       offExit()
+      offSelect()
       clearInterval(tick)
     }
   }, [])
+
 
   const ptyByPid = useMemo(() => {
     const m = new Map<number, PtyRef>()
@@ -53,6 +62,11 @@ export default function App(): React.JSX.Element {
     if (selectedInstance) return ptyByPid.get(selectedInstance.pid) ?? null
     return ptyRefs.find((p) => p.ptyId === selectedId) ?? null
   }, [selectedInstance, ptyByPid, ptyRefs, selectedId])
+
+  // let main know which card is on screen so it can skip redundant toasts
+  useEffect(() => {
+    window.fleet.reportSelected(selectedInstance?.sessionId ?? null)
+  }, [selectedInstance?.sessionId])
 
   // once a starting pty registers a session, upgrade selection to the session
   useEffect(() => {
@@ -110,6 +124,22 @@ export default function App(): React.JSX.Element {
           {new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
       </header>
+
+      {!hooksOk && (
+        <div className="hooks-banner">
+          Alerts are off — Fleet can&apos;t tell when an instance is waiting on you.
+          <button
+            className="btn primary"
+            onClick={async () => {
+              await window.fleet.hooksInstall()
+              setHooksOk(await window.fleet.hooksStatus())
+            }}
+          >
+            Enable alerts
+          </button>
+          <span className="hooks-note">adds Notification/Stop hooks to ~/.claude/settings.json — applies to newly started instances</span>
+        </div>
+      )}
 
       <div className="main">
         <aside className="roster">

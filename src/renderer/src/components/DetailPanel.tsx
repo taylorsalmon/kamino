@@ -100,6 +100,9 @@ export function DetailPanel(props: { instance: Instance; now: number }): React.J
           <button className="btn" onClick={() => window.fleet.openPath(inst.cwd)}>
             Open folder
           </button>
+          <button className="btn" onClick={() => window.fleet.openVsCode(inst.cwd)}>
+            Open in VS Code
+          </button>
           <button
             className="btn"
             onClick={() => navigator.clipboard.writeText(`claude --resume ${inst.sessionId}`)}

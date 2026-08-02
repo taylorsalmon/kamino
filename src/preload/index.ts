@@ -34,9 +34,21 @@ const api = {
   recentSessions: (): Promise<RecentSession[]> => ipcRenderer.invoke('sessions:recent'),
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:pick-folder'),
 
+  // hooks + focus routing
+  hooksStatus: (): Promise<boolean> => ipcRenderer.invoke('hooks:status'),
+  hooksInstall: (): Promise<{ installed: string[]; settingsPath: string }> =>
+    ipcRenderer.invoke('hooks:install'),
+  reportSelected: (sessionId: string | null): void => ipcRenderer.send('ui:selected', sessionId),
+  onSelectSession: (cb: (sessionId: string) => void): (() => void) => {
+    const listener = (_e: unknown, sessionId: string): void => cb(sessionId)
+    ipcRenderer.on('ui:select-session', listener)
+    return () => ipcRenderer.removeListener('ui:select-session', listener)
+  },
+
   // misc
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open:external', url),
-  openPath: (p: string): Promise<void> => ipcRenderer.invoke('open:path', p)
+  openPath: (p: string): Promise<void> => ipcRenderer.invoke('open:path', p),
+  openVsCode: (p: string): Promise<void> => ipcRenderer.invoke('open:vscode', p)
 }
 
 contextBridge.exposeInMainWorld('fleet', api)
