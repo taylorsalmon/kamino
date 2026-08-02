@@ -320,7 +320,17 @@ export default function App(): React.JSX.Element {
           {showTerminal ? (
             <TerminalView ptyId={selectedPty.ptyId} />
           ) : selectedInstance ? (
-            <DetailPanel instance={selectedInstance} now={now} />
+            <DetailPanel
+              instance={selectedInstance}
+              now={now}
+              adoptPending={selectedInstance.sessionId in pendingAdopt}
+              onAdopt={() =>
+                setPendingAdopt((m) => ({
+                  ...m,
+                  [selectedInstance.sessionId]: { cwd: selectedInstance.cwd }
+                }))
+              }
+            />
           ) : (
             <div className="detail-empty">
               <div className="big">CLAUDE FLEET</div>

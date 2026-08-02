@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react'
 import type { Instance } from '../../../shared/types'
 import { elapsed, STATE_WORD } from '../format'
 
-export function DetailPanel(props: { instance: Instance; now: number }): React.JSX.Element {
+export function DetailPanel(props: {
+  instance: Instance
+  now: number
+  adoptPending?: boolean
+  onAdopt?: () => void
+}): React.JSX.Element {
   const { instance: inst, now } = props
   const [recapText, setRecapText] = useState<string | null>(null)
   const [recapBusy, setRecapBusy] = useState(false)
@@ -40,6 +45,25 @@ export function DetailPanel(props: { instance: Instance; now: number }): React.J
         )}
       </div>
       {inst.now.title && <div className="detail-title">{inst.now.title}</div>}
+
+      {inst.kind === 'external' && inst.state !== 'dead' && props.onAdopt && (
+        props.adoptPending ? (
+          <div className="adopt-banner waiting">
+            <span className="adopt-spinner">◌</span> Waiting for you to close its Windows Terminal
+            tab — Fleet takes over the session automatically the moment it exits.
+          </div>
+        ) : (
+          <div className="adopt-banner">
+            <span>
+              This instance runs in an outside terminal, so you can&apos;t type here yet. Move it
+              into Fleet to get an embedded terminal with the same conversation.
+            </span>
+            <button className="btn primary" onClick={props.onAdopt}>
+              Move into Fleet
+            </button>
+          </div>
+        )
+      )}
 
       <div className="section">
         <div className="section-label">Now</div>

@@ -62,27 +62,15 @@ export function GridPane(props: {
           <TerminalView ptyId={ptyId} autoFocus={false} />
         ) : inst ? (
           <div className="pane-detail">
-            {inst.kind === 'external' &&
-              (props.adoptPending ? (
-                <div className="adopt-banner waiting">
-                  <span className="adopt-spinner">◌</span> Waiting for you to close its Windows
-                  Terminal tab — Fleet takes over the session automatically the moment it exits.
-                </div>
-              ) : (
-                <div className="adopt-banner">
-                  <span>
-                    Running in an outside terminal — status only. Typing here needs the session
-                    moved into Fleet.
-                  </span>
-                  <button className="btn primary" onClick={props.onAdopt}>
-                    Move into Fleet
-                  </button>
-                </div>
-              ))}
             {inst.kind === 'background' && (
               <div className="pane-external-note">Background session — status only.</div>
             )}
-            <DetailPanel instance={inst} now={now} />
+            <DetailPanel
+              instance={inst}
+              now={now}
+              adoptPending={props.adoptPending}
+              onAdopt={props.onAdopt}
+            />
           </div>
         ) : null}
       </div>
