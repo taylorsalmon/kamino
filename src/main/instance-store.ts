@@ -133,8 +133,8 @@ export class InstanceStore extends EventEmitter {
 
     for (const entry of entries) {
       // headless `claude -p` children (e.g. our own recap calls) register too —
-      // only interactive sessions belong on the board
-      if (entry.kind && entry.kind !== 'interactive') continue
+      // only interactive and background sessions belong on the board
+      if (entry.kind && entry.kind !== 'interactive' && entry.kind !== 'bg') continue
       const alive = isPidAlive(entry.pid)
       if (!alive) continue // stale crash leftover; transcript-only dead handling below
       seen.add(entry.sessionId)
@@ -202,7 +202,7 @@ export class InstanceStore extends EventEmitter {
     inst.name = entry.name ?? inst.name
     inst.lastActiveAt = Math.max(inst.lastActiveAt, entry.updatedAt ?? 0)
     if (this.embeddedPids().has(entry.pid)) inst.kind = 'embedded'
-    else if (this.rosterSessionIds.has(inst.sessionId)) inst.kind = 'background'
+    else if (entry.kind === 'bg' || this.rosterSessionIds.has(inst.sessionId)) inst.kind = 'background'
     else inst.kind = 'external'
 
     // Registry is authoritative for busy/idle; needs-you (set by hooks/PTY)

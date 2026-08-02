@@ -12,6 +12,8 @@ export function GridPane(props: {
   instance: Instance | null
   ptyId: string | null
   now: number
+  adoptPending: boolean
+  onAdopt: () => void
   onFocus: () => void
 }): React.JSX.Element {
   const { instance: inst, ptyId, now } = props
@@ -60,13 +62,26 @@ export function GridPane(props: {
           <TerminalView ptyId={ptyId} autoFocus={false} />
         ) : inst ? (
           <div className="pane-detail">
-            <div className="pane-external-note">
-              {inst.kind === 'external'
-                ? 'Running in an outside terminal — status only. Resume it in Fleet to type here.'
-                : inst.kind === 'dead'
-                  ? 'Session ended.'
-                  : 'Background session — status only.'}
-            </div>
+            {inst.kind === 'external' &&
+              (props.adoptPending ? (
+                <div className="adopt-banner waiting">
+                  <span className="adopt-spinner">◌</span> Waiting for you to close its Windows
+                  Terminal tab — Fleet takes over the session automatically the moment it exits.
+                </div>
+              ) : (
+                <div className="adopt-banner">
+                  <span>
+                    Running in an outside terminal — status only. Typing here needs the session
+                    moved into Fleet.
+                  </span>
+                  <button className="btn primary" onClick={props.onAdopt}>
+                    Move into Fleet
+                  </button>
+                </div>
+              ))}
+            {inst.kind === 'background' && (
+              <div className="pane-external-note">Background session — status only.</div>
+            )}
             <DetailPanel instance={inst} now={now} />
           </div>
         ) : null}

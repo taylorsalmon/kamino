@@ -799,6 +799,33 @@ body {
   margin-bottom: 12px;
 }
 
+.adopt-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--bg2);
+  border: 1px solid var(--line-bright);
+  border-radius: 7px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.adopt-banner .btn {
+  flex-shrink: 0;
+}
+.adopt-banner.waiting {
+  color: var(--amber);
+  border-color: var(--amber);
+  background: rgba(229, 168, 59, 0.07);
+}
+.adopt-spinner {
+  display: inline-block;
+  animation: rail-breathe 1.4s ease-in-out infinite;
+  margin-right: 4px;
+}
+
 /* ── View toggle ──────────────────────────────────────────────────────── */
 
 .view-toggle {

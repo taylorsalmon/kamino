@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FleetSnapshot, Instance } from '../../shared/types'
 import { InstanceCard } from './components/InstanceCard'
 import { DetailPanel } from './components/DetailPanel'
@@ -30,6 +30,36 @@ export default function App(): React.JSX.Element {
     setView(v)
     localStorage.setItem('fleet:view', v)
   }
+
+  /**
+   * "Move into Fleet": an external instance can't be re-parented while its
+   * terminal owns it — so we arm an adoption. The moment the outside process
+   * exits (user closes the tab), Fleet resumes the same session embedded.
+   */
+  const [pendingAdopt, setPendingAdopt] = useState<Record<string, { cwd: string }>>({})
+  const adoptingRef = useRef(new Set<string>())
+
+  useEffect(() => {
+    for (const [sessionId, info] of Object.entries(pendingAdopt)) {
+      const inst = snap.instances.find((i) => i.sessionId === sessionId)
+      const gone = !inst || inst.state === 'dead'
+      if (gone && !adoptingRef.current.has(sessionId)) {
+        adoptingRef.current.add(sessionId)
+        window.fleet
+          .spawn({ cwd: info.cwd, resumeSessionId: sessionId })
+          .then((p) => {
+            setPendingAdopt((m) => {
+              const next = { ...m }
+              delete next[sessionId]
+              return next
+            })
+            window.fleet.ptyList().then(setPtyRefs)
+            setSelectedId(p.ptyId)
+          })
+          .finally(() => adoptingRef.current.delete(sessionId))
+      }
+    }
+  }, [snap, pendingAdopt])
 
   const [hooksOk, setHooksOk] = useState(true)
 
@@ -182,25 +212,31 @@ export default function App(): React.JSX.Element {
               instance={null}
               ptyId={p.ptyId}
               now={now}
+              adoptPending={false}
+              onAdopt={() => {}}
               onFocus={() => {
                 setSelectedId(p.ptyId)
                 switchView('focus')
               }}
             />
           ))}
-          {snap.instances.map((inst) => (
-            <GridPane
-              key={inst.sessionId}
-              instance={inst}
-              ptyId={ptyByPid.get(inst.pid)?.ptyId ?? null}
-              now={now}
-              onFocus={() => {
-                setSelectedId(inst.sessionId)
-                setShowInfo(false)
-                switchView('focus')
-              }}
-            />
-          ))}
+          {snap.instances
+            .filter((i) => i.state !== 'dead') // ended sessions live in Resume, not the wall
+            .map((inst) => (
+              <GridPane
+                key={inst.sessionId}
+                instance={inst}
+                ptyId={ptyByPid.get(inst.pid)?.ptyId ?? null}
+                now={now}
+                adoptPending={inst.sessionId in pendingAdopt}
+                onAdopt={() => setPendingAdopt((m) => ({ ...m, [inst.sessionId]: { cwd: inst.cwd } }))}
+                onFocus={() => {
+                  setSelectedId(inst.sessionId)
+                  setShowInfo(false)
+                  switchView('focus')
+                }}
+              />
+            ))}
         </div>
       ) : (
       <div className="main">
