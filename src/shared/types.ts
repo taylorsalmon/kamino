@@ -1,0 +1,55 @@
+/** Shared between main and renderer. Keep pure types here — no imports. */
+
+export type InstanceKind = 'embedded' | 'external' | 'background' | 'dead'
+
+export type InstanceState = 'busy' | 'needs-you' | 'idle' | 'dead'
+
+export interface PrLink {
+  number: number
+  url: string
+  repository?: string
+}
+
+export interface InstanceNow {
+  /** Latest ai-title — the evolving one-line task description */
+  title: string
+  /** What it is literally doing right now: "Editing src/lib/seat.ts", "Running: npm test", "Waiting: approve Bash(...)" */
+  activity: string
+  /** ms since the current turn started (only while busy) */
+  turnStartedAt?: number
+  /** Prompts queued behind the current turn */
+  queued: string[]
+}
+
+export interface InstanceRecent {
+  lastPrompt: string
+  lastAssistantText: string
+  awaySummary?: string
+  prs: PrLink[]
+  turns: number
+}
+
+export interface Instance {
+  sessionId: string
+  pid: number
+  cwd: string
+  /** Last path segment of cwd, for display */
+  repo: string
+  gitBranch: string
+  name: string
+  kind: InstanceKind
+  state: InstanceState
+  now: InstanceNow
+  recent: InstanceRecent
+  startedAt: number
+  lastActiveAt: number
+  /** cli version, e.g. 2.1.220 */
+  version?: string
+  model?: string
+  permissionMode?: string
+}
+
+export interface FleetSnapshot {
+  instances: Instance[]
+  updatedAt: number
+}
