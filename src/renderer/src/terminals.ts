@@ -45,13 +45,30 @@ export function getOrCreateTerminal(ptyId: string): TermEntry {
     cursorBlink: true,
     allowProposedApi: true,
     scrollback: 20000,
+    // light terminal to match the user's Claude Code light theme — the CLI
+    // picks colors for a light background, so a dark pane would be unreadable
     theme: {
-      background: '#0b0f14',
-      foreground: '#d5dde5',
+      background: '#fdf6e3',
+      foreground: '#403a2f',
       cursor: '#d97757',
-      selectionBackground: '#2f3b48',
-      black: '#1a2129',
-      brightBlack: '#55616d'
+      cursorAccent: '#fdf6e3',
+      selectionBackground: '#e3d9bd',
+      black: '#403a2f',
+      red: '#c04a3a',
+      green: '#4a7d44',
+      yellow: '#a07219',
+      blue: '#2a6ca6',
+      magenta: '#a2536b',
+      cyan: '#2a8a80',
+      white: '#efe6cd',
+      brightBlack: '#8a8064',
+      brightRed: '#c04a3a',
+      brightGreen: '#4a7d44',
+      brightYellow: '#a07219',
+      brightBlue: '#2a6ca6',
+      brightMagenta: '#a2536b',
+      brightCyan: '#2a8a80',
+      brightWhite: '#fdf6e3'
     }
   })
   const fit = new FitAddon()

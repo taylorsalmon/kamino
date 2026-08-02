@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { fitAndReport, getOrCreateTerminal } from '../terminals'
 
-export function TerminalView(props: { ptyId: string }): React.JSX.Element {
+export function TerminalView(props: { ptyId: string; autoFocus?: boolean }): React.JSX.Element {
   const mountRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -10,7 +10,8 @@ export function TerminalView(props: { ptyId: string }): React.JSX.Element {
     const entry = getOrCreateTerminal(props.ptyId)
     mount.appendChild(entry.host)
     fitAndReport(props.ptyId)
-    entry.term.focus()
+    // in grid view many terminals mount at once — only steal focus when asked
+    if (props.autoFocus !== false) entry.term.focus()
 
     const ro = new ResizeObserver(() => fitAndReport(props.ptyId))
     ro.observe(mount)

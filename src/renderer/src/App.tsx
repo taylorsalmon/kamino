@@ -4,7 +4,10 @@ import { InstanceCard } from './components/InstanceCard'
 import { DetailPanel } from './components/DetailPanel'
 import { TerminalView } from './components/TerminalView'
 import { LaunchDialog } from './components/LaunchDialog'
+import { GridPane } from './components/GridPane'
 import { STATE_WORD } from './format'
+
+type ViewMode = 'grid' | 'focus'
 
 interface PtyRef {
   ptyId: string
@@ -19,6 +22,14 @@ export default function App(): React.JSX.Element {
   const [ptyRefs, setPtyRefs] = useState<PtyRef[]>([])
   const [showLaunch, setShowLaunch] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
+  const [view, setView] = useState<ViewMode>(
+    () => (localStorage.getItem('fleet:view') as ViewMode) || 'grid'
+  )
+
+  function switchView(v: ViewMode): void {
+    setView(v)
+    localStorage.setItem('fleet:view', v)
+  }
 
   const [hooksOk, setHooksOk] = useState(true)
 
@@ -117,6 +128,22 @@ export default function App(): React.JSX.Element {
           )}
         </div>
         <div className="topbar-spacer" />
+        <div className="view-toggle">
+          <button
+            className={`view-btn${view === 'grid' ? ' active' : ''}`}
+            onClick={() => switchView('grid')}
+            title="All terminals side by side"
+          >
+            ▦ Grid
+          </button>
+          <button
+            className={`view-btn${view === 'focus' ? ' active' : ''}`}
+            onClick={() => switchView('focus')}
+            title="One terminal, full size"
+          >
+            ▣ Focus
+          </button>
+        </div>
         <button className="btn primary new-btn" onClick={() => setShowLaunch(true)}>
           + New instance
         </button>
@@ -141,6 +168,41 @@ export default function App(): React.JSX.Element {
         </div>
       )}
 
+      {view === 'grid' ? (
+        <div className="grid-view">
+          {snap.instances.length === 0 && startingPtys.length === 0 && (
+            <div className="detail-empty">
+              <div className="big">CLAUDE FLEET</div>
+              <div>Launch an instance with “+ New instance”, or start one in any terminal</div>
+            </div>
+          )}
+          {startingPtys.map((p) => (
+            <GridPane
+              key={p.ptyId}
+              instance={null}
+              ptyId={p.ptyId}
+              now={now}
+              onFocus={() => {
+                setSelectedId(p.ptyId)
+                switchView('focus')
+              }}
+            />
+          ))}
+          {snap.instances.map((inst) => (
+            <GridPane
+              key={inst.sessionId}
+              instance={inst}
+              ptyId={ptyByPid.get(inst.pid)?.ptyId ?? null}
+              now={now}
+              onFocus={() => {
+                setSelectedId(inst.sessionId)
+                setShowInfo(false)
+                switchView('focus')
+              }}
+            />
+          ))}
+        </div>
+      ) : (
       <div className="main">
         <aside className="roster">
           {startingPtys.map((p) => (
@@ -231,6 +293,7 @@ export default function App(): React.JSX.Element {
           )}
         </section>
       </div>
+      )}
 
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
     </div>
