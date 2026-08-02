@@ -6,6 +6,7 @@ import { PtyManager } from './pty-manager'
 import { HookServer, type HookEvent } from './hook-server'
 import { hooksInstalled, installHooks } from './hook-installer'
 import { recentProjects, recentSessions } from './recents'
+import { recap } from './recap'
 import type { LaunchRequest } from '../shared/types'
 
 const store = new InstanceStore()
@@ -138,6 +139,13 @@ app.whenReady().then(() => {
     return res.canceled ? null : res.filePaths[0]
   })
 
+  // ── recap ────────────────────────────────────────────────────────────
+  ipcMain.handle('recap:get', async (_e, sessionId: string) => {
+    const inst = store.get(sessionId)
+    if (!inst) throw new Error('unknown session')
+    return recap(sessionId, inst.cwd)
+  })
+
   // ── hooks ────────────────────────────────────────────────────────────
   ipcMain.handle('hooks:status', () => hooksInstalled())
   ipcMain.handle('hooks:install', () => installHooks())
@@ -151,6 +159,17 @@ app.whenReady().then(() => {
   })
   ipcMain.handle('open:path', (_e, p: string) => {
     if (typeof p === 'string') shell.openPath(p)
+  })
+  ipcMain.handle('kill:pid', (_e, pid: number) => {
+    // external instances aren't our PTY children — only allow pids that are
+    // known live Claude sessions, never arbitrary processes
+    if (typeof pid !== 'number' || store.sessionIdForPid(pid) === null) return false
+    try {
+      process.kill(pid)
+      return true
+    } catch {
+      return false
+    }
   })
   ipcMain.handle('open:vscode', (_e, p: string) => {
     if (typeof p !== 'string') return

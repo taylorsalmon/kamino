@@ -132,6 +132,9 @@ export class InstanceStore extends EventEmitter {
     const seen = new Set<string>()
 
     for (const entry of entries) {
+      // headless `claude -p` children (e.g. our own recap calls) register too —
+      // only interactive sessions belong on the board
+      if (entry.kind && entry.kind !== 'interactive') continue
       const alive = isPidAlive(entry.pid)
       if (!alive) continue // stale crash leftover; transcript-only dead handling below
       seen.add(entry.sessionId)

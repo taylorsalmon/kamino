@@ -473,6 +473,26 @@ body {
   line-height: 1.55;
 }
 
+.recap {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text);
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--clay);
+  border-radius: 6px;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.recap-err {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--coral);
+  align-self: center;
+}
+
 .pr-list {
   display: flex;
   flex-wrap: wrap;

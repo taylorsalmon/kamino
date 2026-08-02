@@ -1,8 +1,32 @@
+import { useEffect, useState } from 'react'
 import type { Instance } from '../../../shared/types'
 import { elapsed, STATE_WORD } from '../format'
 
 export function DetailPanel(props: { instance: Instance; now: number }): React.JSX.Element {
   const { instance: inst, now } = props
+  const [recapText, setRecapText] = useState<string | null>(null)
+  const [recapBusy, setRecapBusy] = useState(false)
+  const [recapErr, setRecapErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    // recap belongs to a session — drop it when the card changes
+    setRecapText(null)
+    setRecapErr(null)
+    setRecapBusy(false)
+  }, [inst.sessionId])
+
+  async function catchMeUp(): Promise<void> {
+    setRecapBusy(true)
+    setRecapErr(null)
+    try {
+      const r = await window.fleet.recap(inst.sessionId)
+      setRecapText(r.text)
+    } catch (e) {
+      setRecapErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRecapBusy(false)
+    }
+  }
 
   return (
     <div>
@@ -23,6 +47,27 @@ export function DetailPanel(props: { instance: Instance; now: number }): React.J
           <span className="caret">▸</span>
           {inst.now.activity}
         </div>
+      </div>
+
+      <div className="section">
+        <div className="section-label">Catch me up</div>
+        {recapText ? (
+          <div className="recap">{recapText}</div>
+        ) : (
+          <div className="actions">
+            <button className="btn" onClick={catchMeUp} disabled={recapBusy}>
+              {recapBusy ? 'Summarizing…' : '✦ Catch me up'}
+            </button>
+            {recapErr && <span className="recap-err">{recapErr}</span>}
+          </div>
+        )}
+        {recapText && (
+          <div className="actions" style={{ marginTop: 8 }}>
+            <button className="btn" onClick={catchMeUp} disabled={recapBusy}>
+              {recapBusy ? 'Summarizing…' : 'Refresh'}
+            </button>
+          </div>
+        )}
       </div>
 
       {inst.recent.awaySummary && (
@@ -112,6 +157,18 @@ export function DetailPanel(props: { instance: Instance; now: number }): React.J
           {inst.gitBranch && (
             <button className="btn" onClick={() => navigator.clipboard.writeText(inst.gitBranch)}>
               Copy branch
+            </button>
+          )}
+          {inst.kind === 'external' && inst.state !== 'dead' && (
+            <button
+              className="btn danger"
+              onClick={() => {
+                if (confirm(`Kill ${inst.name} (pid ${inst.pid})? Its terminal tab will close the session.`)) {
+                  window.fleet.killPid(inst.pid)
+                }
+              }}
+            >
+              Kill instance
             </button>
           )}
         </div>

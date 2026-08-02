@@ -16,6 +16,7 @@ declare global {
       recentProjects: () => Promise<RecentProject[]>
       recentSessions: () => Promise<RecentSession[]>
       pickFolder: () => Promise<string | null>
+      recap: (sessionId: string) => Promise<{ text: string; generatedAt: number; fromCache: boolean }>
       hooksStatus: () => Promise<boolean>
       hooksInstall: () => Promise<{ installed: string[]; settingsPath: string }>
       reportSelected: (sessionId: string | null) => void
@@ -23,6 +24,7 @@ declare global {
       openExternal: (url: string) => Promise<void>
       openPath: (p: string) => Promise<void>
       openVsCode: (p: string) => Promise<void>
+      killPid: (pid: number) => Promise<boolean>
     }
   }
 }
