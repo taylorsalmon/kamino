@@ -53,3 +53,31 @@ export interface FleetSnapshot {
   instances: Instance[]
   updatedAt: number
 }
+
+export interface RecentProject {
+  cwd: string
+  lastUsed: number
+}
+
+export interface RecentSession {
+  sessionId: string
+  cwd: string
+  gitBranch: string
+  title: string
+  lastPrompt: string
+  prs: number[]
+  mtime: number
+}
+
+export interface LaunchRequest {
+  cwd: string
+  resumeSessionId?: string
+  initialPrompt?: string
+  permissionMode?: string
+}
+
+export interface PtyInfo {
+  ptyId: string
+  pid: number
+  cwd: string
+}

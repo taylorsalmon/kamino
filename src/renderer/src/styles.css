@@ -522,3 +522,215 @@ body {
   outline: 2px solid var(--clay);
   outline-offset: 1px;
 }
+.btn.primary {
+  background: var(--clay-dim);
+  border-color: var(--clay);
+  color: #fff;
+}
+.btn.primary:hover {
+  background: var(--clay);
+}
+.btn.danger:hover {
+  border-color: var(--coral);
+  color: var(--coral);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.new-btn {
+  -webkit-app-region: no-drag;
+}
+
+/* ── Workspace (embedded terminal) ────────────────────────────────────── */
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.workspace-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg1);
+  flex-shrink: 0;
+}
+.detail > .workspace-bar,
+.detail .workspace-bar {
+  margin: -22px -26px 18px;
+}
+.workspace-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.workspace-activity {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.terminal-view {
+  flex: 1;
+  min-height: 0;
+  padding: 6px 2px 6px 10px;
+  background: var(--bg0);
+}
+.term-host {
+  width: 100%;
+  height: 100%;
+}
+.term-host .xterm {
+  height: 100%;
+}
+
+/* ── Launch / resume modal ────────────────────────────────────────────── */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 10, 0.65);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 9vh;
+  z-index: 40;
+}
+.modal {
+  width: min(620px, 92vw);
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg1);
+  border: 1px solid var(--line-bright);
+  border-radius: 10px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.modal-tabs {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg0);
+}
+.modal-tab {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 11px 16px 9px;
+  cursor: pointer;
+}
+.modal-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--clay);
+}
+.modal-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--faint);
+  font-size: 13px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.modal-close:hover {
+  color: var(--text);
+}
+.modal-body {
+  padding: 16px 18px 18px;
+  overflow-y: auto;
+}
+.field {
+  margin-bottom: 14px;
+}
+.field select,
+.field textarea {
+  width: 100%;
+  background: var(--bg0);
+  border: 1px solid var(--line-bright);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 10px;
+}
+.field textarea {
+  resize: vertical;
+  font-family: var(--sans);
+}
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--clay-dim);
+}
+.folder-row {
+  display: flex;
+  gap: 8px;
+}
+.folder-row select {
+  flex: 1;
+  min-width: 0;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.session-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.session-row:hover {
+  border-color: var(--clay-dim);
+  background: var(--bg2);
+}
+.session-title {
+  font-size: 12.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-meta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.session-prompt {
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

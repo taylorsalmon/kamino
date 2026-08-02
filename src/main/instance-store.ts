@@ -43,6 +43,23 @@ export class InstanceStore extends EventEmitter {
   private rosterSessionIds = new Set<string>()
   private broadcastTimer: NodeJS.Timeout | null = null
   private pollTimer: NodeJS.Timeout | null = null
+  /** pids of PTYs we own — instances with these pids are 'embedded' */
+  private embeddedPids: () => Set<number> = () => new Set()
+
+  setEmbeddedPidSource(source: () => Set<number>): void {
+    this.embeddedPids = source
+  }
+
+  sessionIdForPid(pid: number): string | null {
+    for (const t of this.tracked.values()) {
+      if (t.instance.pid === pid && t.instance.state !== 'dead') return t.instance.sessionId
+    }
+    return null
+  }
+
+  liveSessionIds(): string[] {
+    return [...this.tracked.values()].filter((t) => t.instance.state !== 'dead').map((t) => t.instance.sessionId)
+  }
 
   start(): void {
     this.refreshRoster()
@@ -168,8 +185,9 @@ export class InstanceStore extends EventEmitter {
     inst.pid = entry.pid
     inst.name = entry.name ?? inst.name
     inst.lastActiveAt = Math.max(inst.lastActiveAt, entry.updatedAt ?? 0)
-    if (!this.rosterSessionIds.has(inst.sessionId) && inst.kind === 'background') inst.kind = 'external'
-    if (this.rosterSessionIds.has(inst.sessionId)) inst.kind = 'background'
+    if (this.embeddedPids().has(entry.pid)) inst.kind = 'embedded'
+    else if (this.rosterSessionIds.has(inst.sessionId)) inst.kind = 'background'
+    else inst.kind = 'external'
 
     // Registry is authoritative for busy/idle; needs-you (set by hooks/PTY)
     // survives until the state genuinely changes.

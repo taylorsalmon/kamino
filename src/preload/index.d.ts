@@ -1,10 +1,21 @@
-import type { FleetSnapshot } from '../shared/types'
+import type { FleetSnapshot, LaunchRequest, PtyInfo, RecentProject, RecentSession } from '../shared/types'
 
 declare global {
   interface Window {
     fleet: {
       getFleet: () => Promise<FleetSnapshot>
       onFleet: (cb: (snap: FleetSnapshot) => void) => () => void
+      spawn: (req: LaunchRequest) => Promise<PtyInfo>
+      ptyInput: (ptyId: string, data: string) => void
+      ptyResize: (ptyId: string, cols: number, rows: number) => void
+      ptyKill: (ptyId: string) => Promise<void>
+      ptyBacklog: (ptyId: string) => Promise<string>
+      ptyList: () => Promise<PtyInfo[]>
+      onPtyData: (cb: (ptyId: string, data: string) => void) => () => void
+      onPtyExit: (cb: (ptyId: string, exitCode: number) => void) => () => void
+      recentProjects: () => Promise<RecentProject[]>
+      recentSessions: () => Promise<RecentSession[]>
+      pickFolder: () => Promise<string | null>
       openExternal: (url: string) => Promise<void>
       openPath: (p: string) => Promise<void>
     }
