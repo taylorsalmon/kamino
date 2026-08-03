@@ -9,11 +9,13 @@ import { HookServer, type HookEvent } from './hook-server'
 import { hooksInstalled, installHooks } from './hook-installer'
 import { recentProjects, recentSessions } from './recents'
 import { recap } from './recap'
-import type { LaunchRequest } from '../shared/types'
+import { PrStatusPoller } from './pr-status'
+import type { FleetSnapshot, LaunchRequest } from '../shared/types'
 
 const store = new InstanceStore()
 const ptys = new PtyManager()
 const hookServer = new HookServer()
+const prPoller = new PrStatusPoller()
 let win: BrowserWindow | null = null
 
 const LONG_TURN_MS = 30_000
@@ -118,7 +120,12 @@ app.whenReady().then(() => {
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: true })
   store.setEmbeddedPidSource(() => ptys.pids())
   store.start()
-  store.on('snapshot', (snap) => broadcast('fleet:snapshot', snap))
+  store.on('snapshot', (snap: FleetSnapshot) => {
+    broadcast('fleet:snapshot', snap)
+    prPoller.setWatched(snap.instances.flatMap((i) => i.recent.prs.map((p) => p.url)))
+  })
+  prPoller.start()
+  prPoller.on('update', (map) => broadcast('pr:status', map))
   hookServer.start()
   hookServer.on('hook', onHook)
 
@@ -127,6 +134,7 @@ app.whenReady().then(() => {
 
   // ── fleet ────────────────────────────────────────────────────────────
   ipcMain.handle('fleet:get', () => store.snapshot())
+  ipcMain.handle('pr:status:get', () => prPoller.snapshot())
 
   // the CLI paints for its own theme; the embedded terminal must match it.
   // Claude Code stores it in ~/.claude.json ("theme"); absent = dark.
@@ -214,5 +222,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   ptys.disposeAll()
   store.stop()
+  prPoller.stop()
   app.quit()
 })

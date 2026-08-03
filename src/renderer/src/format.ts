@@ -47,6 +47,84 @@ export function jediQuote(offset = 0): string {
   return JEDI_QUOTES[(hourly + offset) % JEDI_QUOTES.length]
 }
 
+import type { PrStatus } from '../../shared/types'
+
+export interface PrBadge {
+  /** one glyph for the chip */
+  glyph: string
+  /** CSS tone: pass | fail | pending | merged | closed | unknown */
+  tone: string
+  /** short words for wider surfaces (detail panel) */
+  words: string
+  /** full hover text */
+  title: string
+}
+
+/** Live decoration for a PR chip; null (plain chip) when no status yet. */
+export function prBadge(st: PrStatus | undefined): PrBadge | null {
+  if (!st) return null
+  const review =
+    st.reviewDecision === 'APPROVED'
+      ? 'approved'
+      : st.reviewDecision === 'CHANGES_REQUESTED'
+        ? 'changes requested'
+        : ''
+  const checksWord =
+    st.checks === 'pass'
+      ? 'checks passing'
+      : st.checks === 'fail'
+        ? `${st.checksFailed}/${st.checksTotal} checks failing`
+        : st.checks === 'pending'
+          ? 'checks running'
+          : ''
+  const parts: string[] = []
+  let glyph: string
+  let tone: string
+  let words: string
+  if (st.state === 'merged') {
+    glyph = '◆'
+    tone = 'merged'
+    words = 'merged'
+    parts.push('merged')
+  } else if (st.state === 'closed') {
+    glyph = '⊘'
+    tone = 'closed'
+    words = 'closed'
+    parts.push('closed')
+  } else if (st.state === 'unknown') {
+    glyph = '?'
+    tone = 'unknown'
+    words = 'status unknown'
+    parts.push(st.error ?? 'status unknown')
+  } else {
+    parts.push(st.isDraft ? 'draft' : 'open')
+    if (checksWord) parts.push(checksWord)
+    if (review) parts.push(review)
+    if (st.checks === 'fail') {
+      glyph = '✕'
+      tone = 'fail'
+      words = 'checks failing'
+    } else if (st.checks === 'pending') {
+      glyph = '●'
+      tone = 'pending'
+      words = 'checks running'
+    } else if (review === 'changes requested') {
+      glyph = '±'
+      tone = 'fail'
+      words = 'changes requested'
+    } else if (st.checks === 'pass') {
+      glyph = '✓'
+      tone = 'pass'
+      words = review === 'approved' ? 'passing · approved' : 'checks passing'
+    } else {
+      glyph = '○'
+      tone = 'open'
+      words = review || (st.isDraft ? 'draft' : 'open')
+    }
+  }
+  return { glyph, tone, words, title: `PR #${st.number} — ${parts.join(' · ')}` }
+}
+
 export const KIND_WORD: Record<string, string> = {
   embedded: 'in bay',
   external: 'field-deployed',

@@ -10,6 +10,27 @@ export interface PrLink {
   repository?: string
 }
 
+export type PrChecks = 'pass' | 'fail' | 'pending' | 'none'
+
+/** Live GitHub state for a PR, fetched via the gh CLI. */
+export interface PrStatus {
+  url: string
+  number: number
+  state: 'open' | 'merged' | 'closed' | 'unknown'
+  isDraft: boolean
+  /** APPROVED | CHANGES_REQUESTED | REVIEW_REQUIRED | '' */
+  reviewDecision: string
+  checks: PrChecks
+  checksTotal: number
+  checksFailed: number
+  checksPending: number
+  fetchedAt: number
+  error?: string
+}
+
+/** Keyed by PR url. */
+export type PrStatusMap = Record<string, PrStatus>
+
 export interface InstanceNow {
   /** Latest ai-title — the evolving one-line task description */
   title: string

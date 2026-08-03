@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FleetSnapshot, Instance } from '../../shared/types'
+import type { FleetSnapshot, Instance, PrStatusMap } from '../../shared/types'
 import { InstanceCard } from './components/InstanceCard'
 import { DetailPanel } from './components/DetailPanel'
 import { TerminalView } from './components/TerminalView'
@@ -18,6 +18,7 @@ interface PtyRef {
 
 export default function App(): React.JSX.Element {
   const [snap, setSnap] = useState<FleetSnapshot>({ instances: [], updatedAt: 0 })
+  const [prStatus, setPrStatus] = useState<PrStatusMap>({})
   const [selectedId, setSelectedId] = useState<string | null>(null) // sessionId or ptyId
   const [now, setNow] = useState(Date.now())
   const [ptyRefs, setPtyRefs] = useState<PtyRef[]>([])
@@ -74,9 +75,11 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     window.fleet.getFleet().then(setSnap)
+    window.fleet.getPrStatus().then(setPrStatus)
     window.fleet.ptyList().then(setPtyRefs) // survive renderer reloads
     window.fleet.hooksStatus().then(setHooksOk)
     const offFleet = window.fleet.onFleet(setSnap)
+    const offPr = window.fleet.onPrStatus(setPrStatus)
     const offExit = window.fleet.onPtyExit(() => window.fleet.ptyList().then(setPtyRefs))
     const offSelect = window.fleet.onSelectSession((sessionId) => {
       setSelectedId(sessionId)
@@ -85,6 +88,7 @@ export default function App(): React.JSX.Element {
     const tick = setInterval(() => setNow(Date.now()), 1000)
     return () => {
       offFleet()
+      offPr()
       offExit()
       offSelect()
       clearInterval(tick)
@@ -287,6 +291,7 @@ export default function App(): React.JSX.Element {
                 ptyId={ptyByPid.get(inst.pid)?.ptyId ?? null}
                 now={now}
                 adoptPending={inst.sessionId in pendingAdopt}
+                prStatus={prStatus}
                 onAdopt={() => setPendingAdopt((m) => ({ ...m, [inst.sessionId]: { cwd: inst.cwd } }))}
                 onFocus={() => {
                   setSelectedId(inst.sessionId)
@@ -336,6 +341,7 @@ export default function App(): React.JSX.Element {
                 instance={inst}
                 now={now}
                 selected={inst.sessionId === selectedId}
+                prStatus={prStatus}
                 onSelect={() => {
                   setSelectedId(inst.sessionId)
                   setShowInfo(false)
@@ -382,6 +388,7 @@ export default function App(): React.JSX.Element {
               instance={selectedInstance}
               now={now}
               adoptPending={selectedInstance.sessionId in pendingAdopt}
+              prStatus={prStatus}
               onAdopt={() =>
                 setPendingAdopt((m) => ({
                   ...m,

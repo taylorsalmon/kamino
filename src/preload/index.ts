@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { FleetSnapshot, LaunchRequest, PtyInfo, RecentProject, RecentSession } from '../shared/types'
+import type { FleetSnapshot, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession } from '../shared/types'
 
 const api = {
   // fleet status
@@ -8,6 +8,14 @@ const api = {
     const listener = (_e: unknown, snap: FleetSnapshot): void => cb(snap)
     ipcRenderer.on('fleet:snapshot', listener)
     return () => ipcRenderer.removeListener('fleet:snapshot', listener)
+  },
+
+  // live PR status (gh CLI)
+  getPrStatus: (): Promise<PrStatusMap> => ipcRenderer.invoke('pr:status:get'),
+  onPrStatus: (cb: (map: PrStatusMap) => void): (() => void) => {
+    const listener = (_e: unknown, map: PrStatusMap): void => cb(map)
+    ipcRenderer.on('pr:status', listener)
+    return () => ipcRenderer.removeListener('pr:status', listener)
   },
 
   // embedded terminals

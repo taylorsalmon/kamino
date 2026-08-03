@@ -17,6 +17,7 @@
   --amber: #e5a83b;
   --coral: #ff5d5d;
   --sage: #5fb88a;
+  --violet: #a78bfa;
   --ghost: #4a5561;
   --mono: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
   --sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
@@ -39,6 +40,7 @@
   --amber: #9a6f14;
   --coral: #c43d3d;
   --sage: #2e7d54;
+  --violet: #6d4fc2;
   --ghost: #a89e8c;
 }
 
@@ -571,6 +573,35 @@ body {
 }
 .pr-link:hover {
   background: rgba(217, 119, 87, 0.12);
+}
+.pr-link .pr-words {
+  color: var(--muted);
+}
+
+/* live GitHub state glyph next to a PR number (all surfaces) */
+.pr-glyph {
+  margin-left: 3px;
+  font-weight: 700;
+}
+.pr-glyph[data-tone='pass'] {
+  color: var(--sage);
+}
+.pr-glyph[data-tone='fail'] {
+  color: var(--coral);
+}
+.pr-glyph[data-tone='pending'] {
+  color: var(--amber);
+}
+.pr-glyph[data-tone='merged'] {
+  color: var(--violet);
+}
+.pr-glyph[data-tone='closed'],
+.pr-glyph[data-tone='unknown'],
+.pr-glyph[data-tone='open'] {
+  color: var(--muted);
+}
+.pr-chip-item + .pr-chip-item {
+  margin-left: 5px;
 }
 
 .queued-list {

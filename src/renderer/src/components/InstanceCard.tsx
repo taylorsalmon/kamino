@@ -1,10 +1,11 @@
-import type { Instance } from '../../../shared/types'
-import { agoShort, elapsed, KIND_WORD, STATE_WORD } from '../format'
+import type { Instance, PrStatusMap } from '../../../shared/types'
+import { agoShort, elapsed, KIND_WORD, prBadge, STATE_WORD } from '../format'
 
 export function InstanceCard(props: {
   instance: Instance
   now: number
   selected: boolean
+  prStatus?: PrStatusMap
   onSelect: () => void
 }): React.JSX.Element {
   const { instance: inst, now } = props
@@ -42,7 +43,20 @@ export function InstanceCard(props: {
           </span>
           {inst.recent.prs.length > 0 && (
             <span className="pr-chip">
-              PR {inst.recent.prs.map((p) => `#${p.number}`).join(' ')}
+              PR{' '}
+              {inst.recent.prs.map((p) => {
+                const badge = prBadge(props.prStatus?.[p.url])
+                return (
+                  <span key={p.url} className="pr-chip-item" title={badge?.title}>
+                    #{p.number}
+                    {badge && (
+                      <span className="pr-glyph" data-tone={badge.tone}>
+                        {badge.glyph}
+                      </span>
+                    )}
+                  </span>
+                )
+              })}
             </span>
           )}
           {inst.now.queued.length > 0 && (

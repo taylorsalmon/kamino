@@ -1,5 +1,5 @@
-import type { Instance } from '../../../shared/types'
-import { agoShort, elapsed, STATE_WORD } from '../format'
+import type { Instance, PrStatusMap } from '../../../shared/types'
+import { agoShort, elapsed, prBadge, STATE_WORD } from '../format'
 import { TerminalView } from './TerminalView'
 import { DetailPanel } from './DetailPanel'
 
@@ -13,6 +13,7 @@ export function GridPane(props: {
   ptyId: string | null
   now: number
   adoptPending: boolean
+  prStatus?: PrStatusMap
   onAdopt: () => void
   onFocus: () => void
 }): React.JSX.Element {
@@ -38,15 +39,26 @@ export function GridPane(props: {
           {inst?.now.activity ?? 'Growing clone… roger roger.'}
         </span>
         <span className="pane-chips">
-          {inst && inst.recent.prs.length > 0 && (
-            <button
-              className="pane-chip pr"
-              title="Open latest PR"
-              onClick={() => window.fleet.openExternal(inst.recent.prs[inst.recent.prs.length - 1].url)}
-            >
-              PR {inst.recent.prs.map((p) => `#${p.number}`).join(' ')}
-            </button>
-          )}
+          {inst &&
+            inst.recent.prs.length > 0 &&
+            (() => {
+              const latest = inst.recent.prs[inst.recent.prs.length - 1]
+              const badge = prBadge(props.prStatus?.[latest.url])
+              return (
+                <button
+                  className="pane-chip pr"
+                  title={badge ? `${badge.title} — click to open` : 'Open latest PR'}
+                  onClick={() => window.fleet.openExternal(latest.url)}
+                >
+                  PR {inst.recent.prs.map((p) => `#${p.number}`).join(' ')}
+                  {badge && (
+                    <span className="pr-glyph" data-tone={badge.tone}>
+                      {badge.glyph}
+                    </span>
+                  )}
+                </button>
+              )
+            })()}
           {inst && inst.now.queued.length > 0 && (
             <span className="pane-chip queue">⧗ {inst.now.queued.length}</span>
           )}
@@ -99,6 +111,7 @@ export function GridPane(props: {
               instance={inst}
               now={now}
               adoptPending={props.adoptPending}
+              prStatus={props.prStatus}
               onAdopt={props.onAdopt}
             />
           </div>

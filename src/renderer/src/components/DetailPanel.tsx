@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { Instance } from '../../../shared/types'
-import { elapsed, STATE_WORD } from '../format'
+import type { Instance, PrStatusMap } from '../../../shared/types'
+import { elapsed, prBadge, STATE_WORD } from '../format'
 
 export function DetailPanel(props: {
   instance: Instance
   now: number
   adoptPending?: boolean
+  prStatus?: PrStatusMap
   onAdopt?: () => void
 }): React.JSX.Element {
   const { instance: inst, now } = props
@@ -132,11 +133,29 @@ export function DetailPanel(props: {
         <div className="section">
           <div className="section-label">Pull requests</div>
           <div className="pr-list">
-            {inst.recent.prs.map((pr) => (
-              <button key={pr.url} className="pr-link" onClick={() => window.fleet.openExternal(pr.url)}>
-                #{pr.number} ↗
-              </button>
-            ))}
+            {inst.recent.prs.map((pr) => {
+              const badge = prBadge(props.prStatus?.[pr.url])
+              return (
+                <button
+                  key={pr.url}
+                  className="pr-link"
+                  title={badge?.title}
+                  onClick={() => window.fleet.openExternal(pr.url)}
+                >
+                  #{pr.number}
+                  {badge && (
+                    <>
+                      {' '}
+                      <span className="pr-glyph" data-tone={badge.tone}>
+                        {badge.glyph}
+                      </span>{' '}
+                      <span className="pr-words">{badge.words}</span>
+                    </>
+                  )}{' '}
+                  ↗
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
