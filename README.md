@@ -1,6 +1,8 @@
 # Kamino
 
-**Agent orchestration for Claude Code.** When you run multiple coding agents at once, the hard part isn't starting them — it's remembering what each one is doing. Which one is mid-task? Which one asked you a question twenty minutes ago and has been sitting blocked ever since? What did the one in that other terminal actually ship? Past two or three instances, that state stops fitting in your head.
+In Star Wars, Kamino is the storm-wracked ocean world where the clone army is grown, trained, and commanded from a single facility. This Kamino grows Claude Code agents instead — and since every instance is literally a clone of the same model, the name fit too well to pass up.
+
+**What it actually is: agent orchestration for Claude Code.** When you run multiple coding agents at once, the hard part isn't starting them — it's remembering what each one is doing. Which one is mid-task? Which one asked you a question twenty minutes ago and has been sitting blocked ever since? What did the one in that other terminal actually ship? Past two or three instances, that state stops fitting in your head.
 
 Kamino is the answer: one window that discovers **every** Claude Code instance on the machine (its own embedded terminals, other terminal windows, headless background sessions), and for each one shows live what it's working on — current activity line, evolving task title, repo + branch, PRs opened, queued prompts — and flags the moment one needs your input (Windows toast included). Been away? One click asks Haiku for a NOW / DONE / NEEDS brief of any instance. It's mission control for an agent workforce, so your working memory doesn't have to be.
 

@@ -1,7 +1,7 @@
 {
   "name": "kamino",
   "version": "0.3.0",
-  "description": "Agent orchestration for Claude Code — live status, embedded terminals, and command of every Claude instance on the machine, so you never lose track of what each agent is working on.",
+  "description": "Kamino: the Star Wars ocean world where the clone army is grown and commanded. This one grows Claude Code agents instead — agent orchestration with live status, embedded terminals, and command of every Claude instance on the machine.",
   "main": "out/main/index.js",
   "private": true,
   "scripts": {
