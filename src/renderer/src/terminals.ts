@@ -22,6 +22,7 @@ export interface TermEntry {
 
 const registry = new Map<string, TermEntry>()
 let wired = false
+let fontSize = 13
 
 /** The CLI paints for its own theme (~/.claude.json, absent = dark); the
  *  terminal background must match or its art renders unreadably. */
@@ -153,7 +154,7 @@ export function getOrCreateTerminal(ptyId: string): TermEntry {
 
   const term = new Terminal({
     fontFamily: "'Cascadia Mono', 'Cascadia Code', Consolas, monospace",
-    fontSize: 13,
+    fontSize,
     lineHeight: 1.15,
     cursorBlink: true,
     allowProposedApi: true,
@@ -189,6 +190,17 @@ export function disposeTerminal(ptyId: string): void {
     e.term.dispose()
     e.host.remove()
     registry.delete(ptyId)
+  }
+}
+
+/** grid density: smaller glyphs fit more clones per screen. Applies to every
+ *  live terminal and becomes the default for ones created later. */
+export function setTermFontSize(px: number): void {
+  if (px === fontSize) return
+  fontSize = px
+  for (const [id, e] of registry) {
+    e.term.options.fontSize = px
+    fitAndReport(id)
   }
 }
 

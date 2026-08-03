@@ -180,6 +180,65 @@ export function describeToolUse(name: string, input: Record<string, unknown> | u
   }
 }
 
+/** The last tool_use an assistant record issued — kept around so that when a
+ *  Notification hook fires with a generic "waiting for your input", we can say
+ *  what it is actually blocked on. */
+export interface PendingToolUse {
+  name: string
+  input?: Record<string, unknown>
+}
+
+/**
+ * Full-detail line for the needs-you banner. Unlike describeToolUse (a status
+ * verb), this is the content of the ask itself: question + options, the exact
+ * command, the plan headline. Falls back to the tail of the last reply, which
+ * is where a plain "should I do X or Y?" ends up.
+ */
+export function describePendingAsk(tool: PendingToolUse | null, lastAssistantText: string): string {
+  if (tool) {
+    const i = tool.input ?? {}
+    switch (tool.name) {
+      case 'AskUserQuestion': {
+        const qs = Array.isArray(i.questions) ? (i.questions as Array<Record<string, unknown>>) : []
+        const parts = qs
+          .map((q) => {
+            const question = typeof q?.question === 'string' ? q.question : ''
+            const opts = Array.isArray(q?.options)
+              ? (q.options as Array<Record<string, unknown>>)
+                  .map((o) => (typeof o?.label === 'string' ? o.label : ''))
+                  .filter(Boolean)
+                  .join(' / ')
+              : ''
+            return question ? (opts ? `${question} [${opts}]` : question) : ''
+          })
+          .filter(Boolean)
+        if (parts.length) return parts.join('  ·  ')
+        return 'Answer its question'
+      }
+      case 'ExitPlanMode': {
+        const plan = typeof i.plan === 'string' ? i.plan : ''
+        return plan ? `Approve plan: ${shorten(plan, 240)}` : 'Approve its plan'
+      }
+      case 'Bash':
+      case 'PowerShell': {
+        const cmd = String(i.command ?? i.description ?? '')
+        return cmd ? `Approve command: ${shorten(cmd, 240)}` : 'Approve a shell command'
+      }
+      case 'Edit':
+      case 'Write':
+      case 'NotebookEdit':
+        return `Approve edit to ${lastSegment(i.file_path) || 'a file'}`
+      default:
+        return `Approve ${tool.name}`
+    }
+  }
+  // No blocked tool — it ended its turn talking to you. The ask is in the
+  // text, and almost always at the END of the reply, so keep the tail.
+  const t = lastAssistantText.replace(/\s+/g, ' ').trim()
+  if (!t) return ''
+  return t.length > 280 ? '…' + t.slice(-279) : t
+}
+
 /** Extract text/tool info from an assistant record. */
 export function describeAssistant(rec: TranscriptRecord): { activity: string; text?: string } | null {
   const content = rec.message?.content

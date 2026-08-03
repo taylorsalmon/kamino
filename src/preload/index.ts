@@ -41,6 +41,9 @@ const api = {
   recentProjects: (): Promise<RecentProject[]> => ipcRenderer.invoke('projects:recent'),
   recentSessions: (): Promise<RecentSession[]> => ipcRenderer.invoke('sessions:recent'),
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:pick-folder'),
+  /** use instead of window.confirm(), which kills keyboard focus on Windows */
+  confirm: (message: string, detail?: string): Promise<boolean> =>
+    ipcRenderer.invoke('dialog:confirm', message, detail),
 
   // recap
   recap: (sessionId: string): Promise<{ text: string; generatedAt: number; fromCache: boolean }> =>

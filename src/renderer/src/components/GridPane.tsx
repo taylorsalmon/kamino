@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Instance, PrStatusMap } from '../../../shared/types'
 import { agoShort, elapsed, prBadge, STATE_WORD } from '../format'
 import { TerminalView } from './TerminalView'
@@ -22,6 +22,10 @@ export function GridPane(props: {
   const state = inst?.state ?? 'busy'
   // per-pane flip between the live terminal and the intel/detail view
   const [showIntel, setShowIntel] = useState(false)
+  // needs-you banner dismissal — comes back if a NEW ask appears
+  const [askDismissed, setAskDismissed] = useState(false)
+  const pendingAsk = state === 'needs-you' ? inst?.now.pendingAsk : undefined
+  useEffect(() => setAskDismissed(false), [pendingAsk])
 
   const rightTime = inst
     ? state === 'busy' && inst.now.turnStartedAt
@@ -84,9 +88,9 @@ export function GridPane(props: {
           <button
             className="pane-chip kill-btn"
             title="Decommission this clone"
-            onClick={() => {
+            onClick={async () => {
               const name = inst?.name ?? 'this clone'
-              if (!confirm(`Decommission ${name}? Unsaved work in its turn is lost.`)) return
+              if (!(await window.fleet.confirm(`Decommission ${name}?`, 'Unsaved work in its turn is lost.'))) return
               if (ptyId) window.fleet.ptyKill(ptyId)
               else if (inst) window.fleet.killPid(inst.pid)
             }}
@@ -107,14 +111,33 @@ export function GridPane(props: {
               {inst.kind === 'external' ? 'field-deployed' : 'covert ops'}
             </span>
           )}
-          {inst.recent.lastAssistantText && (
-            <span className="pane-last" title={inst.recent.lastAssistantText}>
-              {inst.recent.lastAssistantText}
-            </span>
-          )}
+        </div>
+      )}
+      {/* always rendered while a session exists — constant height keeps the
+          terminal below from resizing mid-typing (ConPTY redraw mangles the
+          composer) */}
+      {inst && (
+        <div className="pane-quotes">
+          <span className="pane-quote" title={inst.recent.lastPrompt}>
+            <span className="who">❯ you</span> {inst.recent.lastPrompt || '—'}
+          </span>
+          <span className="pane-quote" title={inst.recent.lastAssistantText}>
+            <span className="who">✦ clone</span> {inst.recent.lastAssistantText || '—'}
+          </span>
         </div>
       )}
       <div className="pane-body">
+        {/* overlay, not a row — pane height must not change or ConPTY redraws
+            mangle the composer mid-typing */}
+        {pendingAsk && !askDismissed && !showIntel && (
+          <div className="pane-ask" title={pendingAsk}>
+            <span className="pane-ask-label">NEEDS YOU</span>
+            <span className="pane-ask-text">{pendingAsk}</span>
+            <button className="pane-ask-close" title="Dismiss" onClick={() => setAskDismissed(true)}>
+              ✕
+            </button>
+          </div>
+        )}
         {ptyId && !(showIntel && inst) ? (
           <TerminalView ptyId={ptyId} autoFocus={false} />
         ) : inst ? (
