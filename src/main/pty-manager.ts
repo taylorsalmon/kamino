@@ -54,12 +54,20 @@ export class PtyManager extends EventEmitter {
     }
     if (opts.initialPrompt) args.push(opts.initialPrompt)
 
+    // Kamino itself may have been launched from a colour-suppressed shell
+    // (NO_COLOR=1, TERM=dumb — agent harnesses do this). The clone's terminal
+    // is a real xterm, so never let that leak into the child.
+    const env = { ...process.env } as Record<string, string>
+    delete env.NO_COLOR
+    if (!env.TERM || env.TERM === 'dumb') env.TERM = 'xterm-256color'
+    if (!env.COLORTERM) env.COLORTERM = 'truecolor'
+
     const proc = pty.spawn(resolveClaudeExe(), args, {
       name: 'xterm-256color',
       cwd: opts.cwd,
       cols: opts.cols ?? 120,
       rows: opts.rows ?? 32,
-      env: process.env as Record<string, string>
+      env
     })
 
     const ptyId = `pty-${this.nextId++}`
