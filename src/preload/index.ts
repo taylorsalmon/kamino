@@ -53,7 +53,8 @@ const api = {
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open:external', url),
   openPath: (p: string): Promise<void> => ipcRenderer.invoke('open:path', p),
   openVsCode: (p: string): Promise<void> => ipcRenderer.invoke('open:vscode', p),
-  killPid: (pid: number): Promise<boolean> => ipcRenderer.invoke('kill:pid', pid)
+  killPid: (pid: number): Promise<boolean> => ipcRenderer.invoke('kill:pid', pid),
+  claudeTheme: (): Promise<'light' | 'dark'> => ipcRenderer.invoke('claude:theme')
 }
 
 contextBridge.exposeInMainWorld('fleet', api)

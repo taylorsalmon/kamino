@@ -25,6 +25,7 @@ declare global {
       openPath: (p: string) => Promise<void>
       openVsCode: (p: string) => Promise<void>
       killPid: (pid: number) => Promise<boolean>
+      claudeTheme: () => Promise<'light' | 'dark'>
     }
   }
 }

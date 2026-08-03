@@ -692,7 +692,7 @@ body {
   flex: 1;
   min-height: 0;
   padding: 6px 2px 6px 10px;
-  background: var(--bg0);
+  background: var(--term-bg, var(--bg0)); /* set from JS to match the CLI theme */
 }
 .term-host {
   width: 100%;
@@ -892,7 +892,7 @@ body {
 }
 .pane-body .terminal-view {
   padding: 4px 0 4px 6px;
-  background: #fdf6e3; /* matches the light terminal theme */
+  background: var(--term-bg, var(--bg0));
 }
 .pane-detail {
   overflow-y: auto;

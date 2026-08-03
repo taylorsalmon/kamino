@@ -18,6 +18,71 @@ export interface TermEntry {
 const registry = new Map<string, TermEntry>()
 let wired = false
 
+/** The CLI paints for its own theme (~/.claude.json, absent = dark); the
+ *  terminal background must match or its art renders unreadably. */
+const THEMES = {
+  light: {
+    background: '#fdf6e3',
+    foreground: '#403a2f',
+    cursor: '#d97757',
+    cursorAccent: '#fdf6e3',
+    selectionBackground: '#e3d9bd',
+    black: '#403a2f',
+    red: '#c04a3a',
+    green: '#4a7d44',
+    yellow: '#a07219',
+    blue: '#2a6ca6',
+    magenta: '#a2536b',
+    cyan: '#2a8a80',
+    white: '#efe6cd',
+    brightBlack: '#8a8064',
+    brightRed: '#c04a3a',
+    brightGreen: '#4a7d44',
+    brightYellow: '#a07219',
+    brightBlue: '#2a6ca6',
+    brightMagenta: '#a2536b',
+    brightCyan: '#2a8a80',
+    brightWhite: '#fdf6e3'
+  },
+  dark: {
+    background: '#0f141a',
+    foreground: '#d5dde5',
+    cursor: '#d97757',
+    cursorAccent: '#0f141a',
+    selectionBackground: '#2f3b48',
+    black: '#1c242e',
+    red: '#ff5d5d',
+    green: '#5fb88a',
+    yellow: '#e5a83b',
+    blue: '#5aa7e0',
+    magenta: '#c792ea',
+    cyan: '#56c8bc',
+    white: '#d5dde5',
+    brightBlack: '#7c8894',
+    brightRed: '#ff7d7d',
+    brightGreen: '#7fd0a4',
+    brightYellow: '#efc06b',
+    brightBlue: '#82c0ee',
+    brightMagenta: '#d7aef2',
+    brightCyan: '#7edcd2',
+    brightWhite: '#f0f4f8'
+  }
+} as const
+
+let cliTheme: keyof typeof THEMES = 'dark'
+applyTermBg()
+void window.fleet.claudeTheme().then((t) => {
+  cliTheme = t
+  applyTermBg()
+  // retheme terminals created before the answer arrived
+  for (const e of registry.values()) e.term.options.theme = THEMES[cliTheme]
+})
+
+/** keeps the container padding around each terminal the same color as it */
+function applyTermBg(): void {
+  document.documentElement.style.setProperty('--term-bg', THEMES[cliTheme].background)
+}
+
 function wireGlobalListeners(): void {
   if (wired) return
   wired = true
@@ -33,6 +98,43 @@ function wireGlobalListeners(): void {
   })
 }
 
+/** Windows Terminal clipboard conventions: Ctrl+C copies when text is
+ *  selected (else passes ^C through), Ctrl+V pastes text — or forwards the
+ *  keystroke when the clipboard holds no text, so Claude Code can grab
+ *  images from the clipboard itself. Ctrl+Shift+C/V always copy/paste.
+ *  Right-click: copy the selection if there is one, otherwise paste. */
+function wireClipboard(ptyId: string, term: Terminal, host: HTMLDivElement): void {
+  const copySelection = (): void => {
+    void navigator.clipboard.writeText(term.getSelection())
+    term.clearSelection()
+  }
+  const pasteText = (fallbackKeystroke?: string): void => {
+    void navigator.clipboard.readText().then((t) => {
+      if (t) term.paste(t)
+      else if (fallbackKeystroke) window.fleet.ptyInput(ptyId, fallbackKeystroke)
+    })
+  }
+
+  term.attachCustomKeyEventHandler((e) => {
+    if (e.type !== 'keydown' || !e.ctrlKey || e.altKey || e.metaKey) return true
+    if (e.code === 'KeyC' && (e.shiftKey || term.hasSelection())) {
+      if (term.hasSelection()) copySelection()
+      return false
+    }
+    if (e.code === 'KeyV') {
+      pasteText(e.shiftKey ? undefined : '\x16')
+      return false
+    }
+    return true
+  })
+
+  host.addEventListener('contextmenu', (e) => {
+    e.preventDefault()
+    if (term.hasSelection()) copySelection()
+    else pasteText()
+  })
+}
+
 export function getOrCreateTerminal(ptyId: string): TermEntry {
   wireGlobalListeners()
   let entry = registry.get(ptyId)
@@ -45,31 +147,7 @@ export function getOrCreateTerminal(ptyId: string): TermEntry {
     cursorBlink: true,
     allowProposedApi: true,
     scrollback: 20000,
-    // light terminal to match the user's Claude Code light theme — the CLI
-    // picks colors for a light background, so a dark pane would be unreadable
-    theme: {
-      background: '#fdf6e3',
-      foreground: '#403a2f',
-      cursor: '#d97757',
-      cursorAccent: '#fdf6e3',
-      selectionBackground: '#e3d9bd',
-      black: '#403a2f',
-      red: '#c04a3a',
-      green: '#4a7d44',
-      yellow: '#a07219',
-      blue: '#2a6ca6',
-      magenta: '#a2536b',
-      cyan: '#2a8a80',
-      white: '#efe6cd',
-      brightBlack: '#8a8064',
-      brightRed: '#c04a3a',
-      brightGreen: '#4a7d44',
-      brightYellow: '#a07219',
-      brightBlue: '#2a6ca6',
-      brightMagenta: '#a2536b',
-      brightCyan: '#2a8a80',
-      brightWhite: '#fdf6e3'
-    }
+    theme: THEMES[cliTheme]
   })
   const fit = new FitAddon()
   term.loadAddon(fit)
@@ -78,6 +156,7 @@ export function getOrCreateTerminal(ptyId: string): TermEntry {
 
   const host = document.createElement('div')
   host.className = 'term-host'
+  wireClipboard(ptyId, term, host)
   term.open(host)
 
   // restore anything emitted before this terminal existed (e.g. app reload)

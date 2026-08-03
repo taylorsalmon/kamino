@@ -1,5 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
 import { spawn } from 'node:child_process'
+import * as fs from 'node:fs'
+import * as os from 'node:os'
 import * as path from 'node:path'
 import { InstanceStore } from './instance-store'
 import { PtyManager } from './pty-manager'
@@ -125,6 +127,18 @@ app.whenReady().then(() => {
 
   // ── fleet ────────────────────────────────────────────────────────────
   ipcMain.handle('fleet:get', () => store.snapshot())
+
+  // the CLI paints for its own theme; the embedded terminal must match it.
+  // Claude Code stores it in ~/.claude.json ("theme"); absent = dark.
+  ipcMain.handle('claude:theme', () => {
+    try {
+      const raw = fs.readFileSync(path.join(os.homedir(), '.claude.json'), 'utf-8')
+      const theme = JSON.parse(raw).theme
+      return typeof theme === 'string' && theme.includes('light') ? 'light' : 'dark'
+    } catch {
+      return 'dark'
+    }
+  })
 
   // ── ptys ─────────────────────────────────────────────────────────────
   ipcMain.handle('pty:spawn', (_e, req: LaunchRequest) => {
