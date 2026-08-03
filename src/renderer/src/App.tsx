@@ -5,7 +5,7 @@ import { DetailPanel } from './components/DetailPanel'
 import { TerminalView } from './components/TerminalView'
 import { LaunchDialog } from './components/LaunchDialog'
 import { GridPane } from './components/GridPane'
-import { jediQuote, STATE_WORD } from './format'
+import { agoShort, elapsed, jediQuote, prBadge, STATE_WORD } from './format'
 
 type ViewMode = 'grid' | 'focus'
 type Theme = 'light' | 'dark'
@@ -353,32 +353,75 @@ export default function App(): React.JSX.Element {
 
         <section className={showTerminal ? 'workspace' : 'detail'}>
           {selectedPty && (
-            <div className="workspace-bar">
-              <span className="workspace-name">
-                {selectedInstance?.name ?? 'growing…'}
-                {selectedInstance && (
-                  <span className="state-pill" data-state={selectedInstance.state}>
-                    {STATE_WORD[selectedInstance.state]}
+            <div className="workspace-bar hud">
+              <div className="hud-row">
+                <span className="workspace-name">
+                  {selectedInstance?.name ?? 'growing…'}
+                  {selectedInstance && (
+                    <span className="state-pill" data-state={selectedInstance.state}>
+                      {STATE_WORD[selectedInstance.state]}
+                    </span>
+                  )}
+                  {selectedInstance && (
+                    <span className="hud-elapsed">
+                      {selectedInstance.state === 'busy' && selectedInstance.now.turnStartedAt
+                        ? elapsed(selectedInstance.now.turnStartedAt, now)
+                        : agoShort(selectedInstance.lastActiveAt, now)}
+                    </span>
+                  )}
+                </span>
+                {selectedInstance?.now.title && (
+                  <span className="hud-title" title={selectedInstance.now.title}>
+                    {selectedInstance.now.title}
                   </span>
                 )}
-              </span>
-              <span className="workspace-activity">{selectedInstance?.now.activity ?? ''}</span>
-              <span className="topbar-spacer" />
-              {selectedInstance && (
-                <button className="btn" onClick={() => setShowInfo((v) => !v)}>
-                  {showInfo ? 'Terminal' : 'Info'}
+                <span className="topbar-spacer" />
+                {selectedInstance && (
+                  <button className="btn" onClick={() => setShowInfo((v) => !v)}>
+                    {showInfo ? 'Terminal' : 'Info'}
+                  </button>
+                )}
+                <button
+                  className="btn danger"
+                  onClick={() => {
+                    if (confirm('Decommission this clone? Unsaved work in its turn is lost.')) {
+                      window.fleet.ptyKill(selectedPty.ptyId)
+                    }
+                  }}
+                >
+                  Decommission
                 </button>
+              </div>
+              {selectedInstance && (
+                <div className="hud-row sub">
+                  <span className="workspace-activity">
+                    <span className="caret">▸</span>
+                    {selectedInstance.now.activity}
+                  </span>
+                  <span className="topbar-spacer" />
+                  {selectedInstance.recent.prs.map((pr) => {
+                    const badge = prBadge(prStatus[pr.url])
+                    return (
+                      <button
+                        key={pr.url}
+                        className="pane-chip pr"
+                        title={badge ? `${badge.title} — click to open` : 'Open PR'}
+                        onClick={() => window.fleet.openExternal(pr.url)}
+                      >
+                        PR #{pr.number}
+                        {badge && (
+                          <span className="pr-glyph" data-tone={badge.tone}>
+                            {badge.glyph}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                  {selectedInstance.now.queued.length > 0 && (
+                    <span className="pane-chip queue">⧗ {selectedInstance.now.queued.length} queued</span>
+                  )}
+                </div>
               )}
-              <button
-                className="btn danger"
-                onClick={() => {
-                  if (confirm('Decommission this clone? Unsaved work in its turn is lost.')) {
-                    window.fleet.ptyKill(selectedPty.ptyId)
-                  }
-                }}
-              >
-                Decommission
-              </button>
             </div>
           )}
           {showTerminal ? (
