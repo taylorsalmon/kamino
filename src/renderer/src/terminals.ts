@@ -28,25 +28,25 @@ let wired = false
 const THEMES = {
   light: {
     background: '#fdf6e3',
-    foreground: '#403a2f',
+    foreground: '#33302a',
     cursor: '#d97757',
     cursorAccent: '#fdf6e3',
-    selectionBackground: '#e3d9bd',
-    black: '#403a2f',
-    red: '#c04a3a',
-    green: '#4a7d44',
-    yellow: '#a07219',
-    blue: '#2a6ca6',
-    magenta: '#a2536b',
-    cyan: '#2a8a80',
+    selectionBackground: '#e8dcb8',
+    black: '#33302a',
+    red: '#cc3a2a',
+    green: '#2f8f3e',
+    yellow: '#b07d00',
+    blue: '#1f6fc2',
+    magenta: '#b13a86',
+    cyan: '#14918a',
     white: '#efe6cd',
-    brightBlack: '#8a8064',
-    brightRed: '#c04a3a',
-    brightGreen: '#4a7d44',
-    brightYellow: '#a07219',
-    brightBlue: '#2a6ca6',
-    brightMagenta: '#a2536b',
-    brightCyan: '#2a8a80',
+    brightBlack: '#7a7156',
+    brightRed: '#e0432f',
+    brightGreen: '#3aa04a',
+    brightYellow: '#c28e00',
+    brightBlue: '#2f83d6',
+    brightMagenta: '#c94a99',
+    brightCyan: '#17a89f',
     brightWhite: '#fdf6e3'
   },
   dark: {
@@ -158,6 +158,9 @@ export function getOrCreateTerminal(ptyId: string): TermEntry {
     cursorBlink: true,
     allowProposedApi: true,
     scrollback: 20000,
+    // the CLI paints much of its UI in its own truecolor, which we can't
+    // theme — but xterm can force washed-out text up to readable contrast
+    minimumContrastRatio: 4.5,
     theme: THEMES[cliTheme]
   })
   const fit = new FitAddon()
