@@ -15,9 +15,18 @@ export function elapsed(ts: number, now: number): string {
   return `${m}m ${s % 60}s`
 }
 
+// Kamino vocabulary — clone status callouts. Meaning must stay instantly
+// readable: ENGAGED = mid-turn, AWAITING ORDERS = blocked on you.
 export const STATE_WORD: Record<string, string> = {
-  busy: 'WORKING',
-  'needs-you': 'NEEDS YOU',
-  idle: 'IDLE',
-  dead: 'ENDED'
+  busy: 'ENGAGED',
+  'needs-you': 'AWAITING ORDERS',
+  idle: 'STANDING BY',
+  dead: 'DECOMMISSIONED'
+}
+
+export const KIND_WORD: Record<string, string> = {
+  embedded: 'in bay',
+  external: 'field-deployed',
+  background: 'covert ops',
+  dead: 'archived'
 }

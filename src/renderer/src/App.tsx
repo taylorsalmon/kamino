@@ -151,32 +151,51 @@ export default function App(): React.JSX.Element {
 
   const showTerminal = selectedPty && !showInfo
 
+  function executeOrder66(): void {
+    const targets = snap.instances.filter((i) => i.state !== 'dead')
+    const n = targets.length + startingPtys.length
+    if (n === 0) return
+    if (
+      !confirm(
+        `Execute Order 66?\n\nAll ${n} clone${n === 1 ? '' : 's'} on this board will be terminated — embedded, outside terminals, and background sessions alike.\n\nGood soldiers follow orders.`
+      )
+    )
+      return
+    for (const p of startingPtys) window.fleet.ptyKill(p.ptyId)
+    for (const inst of targets) {
+      const pty = ptyByPid.get(inst.pid)
+      if (pty) window.fleet.ptyKill(pty.ptyId)
+      else window.fleet.killPid(inst.pid)
+    }
+  }
+
   return (
     <div className="app">
       <header className="topbar">
-        <div className="wordmark">
-          <span className="claude">CLAUDE</span> FLEET
+        <div className="wordmark" title="Clone production facility">
+          <span className="claude">KAM</span>INO
+          <span className="wordmark-sub">CLONE PRODUCTION FACILITY</span>
         </div>
         <div className="fleet-counts">
           <span className="count">
             <span className="count-dot" style={{ background: 'var(--sage)' }} />
-            {live} live
+            {live} clones active
           </span>
           <span className="count">
             <span className="count-dot" style={{ background: 'var(--amber)' }} />
-            {counts.busy} working
+            {counts.busy} engaged
           </span>
           {counts['needs-you'] > 0 && (
             <span className="count needs-you">
               <span className="count-dot" style={{ background: 'var(--coral)' }} />
-              {counts['needs-you']} need you
+              {counts['needs-you']} awaiting orders
             </span>
           )}
           <span
             className="count kind-split"
             title="Fleet sees every Claude Code process on this machine — including ones running in other terminals and headless/background sessions, not just the terminals you have open"
           >
-            {kinds.embedded} in Fleet · {kinds.external} outside · {kinds.background} background
+            {kinds.embedded} in bays · {kinds.external} field-deployed · {kinds.background} covert ops
           </span>
         </div>
         <div className="topbar-spacer" />
@@ -198,13 +217,22 @@ export default function App(): React.JSX.Element {
         </div>
         <button
           className="btn theme-btn"
-          title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+          title={theme === 'light' ? 'Night cycle' : 'Day cycle'}
           onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
         >
           {theme === 'light' ? '☾' : '☀'}
         </button>
+        {live > 0 && (
+          <button
+            className="btn order66-btn"
+            title="Terminate every clone on the board"
+            onClick={executeOrder66}
+          >
+            Order 66
+          </button>
+        )}
         <button className="btn primary new-btn" onClick={() => setShowLaunch(true)}>
-          + New instance
+          + Commission clone
         </button>
         <div className="topbar-clock">
           {new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -213,7 +241,7 @@ export default function App(): React.JSX.Element {
 
       {!hooksOk && (
         <div className="hooks-banner">
-          Alerts are off — Fleet can&apos;t tell when an instance is waiting on you.
+          Long-range comms are down — Kamino can&apos;t tell when a clone is awaiting your orders.
           <button
             className="btn primary"
             onClick={async () => {
@@ -221,7 +249,7 @@ export default function App(): React.JSX.Element {
               setHooksOk(await window.fleet.hooksStatus())
             }}
           >
-            Enable alerts
+            Restore comms
           </button>
           <span className="hooks-note">adds Notification/Stop hooks to ~/.claude/settings.json — applies to newly started instances</span>
         </div>
@@ -231,8 +259,8 @@ export default function App(): React.JSX.Element {
         <div className="grid-view">
           {snap.instances.length === 0 && startingPtys.length === 0 && (
             <div className="detail-empty">
-              <div className="big">CLAUDE FLEET</div>
-              <div>Launch an instance with “+ New instance”, or start one in any terminal</div>
+              <div className="big">KAMINO</div>
+              <div>The facility is quiet. Commission a clone with “+ Commission clone”, or start one in any terminal</div>
             </div>
           )}
           {startingPtys.map((p) => (
@@ -283,22 +311,22 @@ export default function App(): React.JSX.Element {
               <span className="rail" />
               <span className="card-body">
                 <span className="card-top">
-                  <span className="card-name">{p.cwd.split(/[\\/]/).pop() || 'new instance'}</span>
+                  <span className="card-name">{p.cwd.split(/[\\/]/).pop() || 'new clone'}</span>
                   <span className="state-word" data-state="busy">
-                    STARTING
+                    CLONING
                   </span>
                 </span>
                 <span className="card-activity">
-                  <span className="caret">▸</span>Launching Claude Code…
+                  <span className="caret">▸</span>Growing clone… roger roger.
                 </span>
               </span>
             </button>
           ))}
           {snap.instances.length === 0 && startingPtys.length === 0 ? (
             <div className="roster-empty">
-              No Claude Code instances found.
+              No clones in production.
               <br />
-              Launch one with “+ New instance”, or start one in any terminal and it appears here.
+              Commission one with “+ Commission clone”, or start one in any terminal and it appears here.
             </div>
           ) : (
             snap.instances.map((inst: Instance) => (
@@ -320,7 +348,7 @@ export default function App(): React.JSX.Element {
           {selectedPty && (
             <div className="workspace-bar">
               <span className="workspace-name">
-                {selectedInstance?.name ?? 'starting…'}
+                {selectedInstance?.name ?? 'growing…'}
                 {selectedInstance && (
                   <span className="state-pill" data-state={selectedInstance.state}>
                     {STATE_WORD[selectedInstance.state]}
@@ -337,12 +365,12 @@ export default function App(): React.JSX.Element {
               <button
                 className="btn danger"
                 onClick={() => {
-                  if (confirm('Kill this instance? Unsaved work in its turn is lost.')) {
+                  if (confirm('Decommission this clone? Unsaved work in its turn is lost.')) {
                     window.fleet.ptyKill(selectedPty.ptyId)
                   }
                 }}
               >
-                Kill
+                Decommission
               </button>
             </div>
           )}
@@ -362,8 +390,8 @@ export default function App(): React.JSX.Element {
             />
           ) : (
             <div className="detail-empty">
-              <div className="big">CLAUDE FLEET</div>
-              <div>Select an instance to see what it&apos;s doing</div>
+              <div className="big">KAMINO</div>
+              <div>Select a clone to see what it&apos;s doing</div>
             </div>
           )}
         </section>

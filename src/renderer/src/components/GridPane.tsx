@@ -29,13 +29,13 @@ export function GridPane(props: {
     <div className="pane" data-state={state}>
       <div className="pane-strip" data-state={state}>
         <span className="pane-rail" />
-        <span className="pane-name">{inst?.name ?? 'starting…'}</span>
+        <span className="pane-name">{inst?.name ?? 'growing…'}</span>
         <span className="state-word" data-state={state}>
-          {inst ? STATE_WORD[inst.state] : 'STARTING'}
+          {inst ? STATE_WORD[inst.state] : 'CLONING'}
         </span>
         <span className="pane-activity" title={inst?.now.activity}>
           <span className="caret">▸</span>
-          {inst?.now.activity ?? 'Launching Claude Code…'}
+          {inst?.now.activity ?? 'Growing clone… roger roger.'}
         </span>
         <span className="pane-chips">
           {inst && inst.recent.prs.length > 0 && (
@@ -56,10 +56,10 @@ export function GridPane(props: {
           </button>
           <button
             className="pane-chip kill-btn"
-            title="Kill this instance"
+            title="Decommission this clone"
             onClick={() => {
-              const name = inst?.name ?? 'this instance'
-              if (!confirm(`Kill ${name}? Unsaved work in its turn is lost.`)) return
+              const name = inst?.name ?? 'this clone'
+              if (!confirm(`Decommission ${name}? Unsaved work in its turn is lost.`)) return
               if (ptyId) window.fleet.ptyKill(ptyId)
               else if (inst) window.fleet.killPid(inst.pid)
             }}
@@ -76,8 +76,8 @@ export function GridPane(props: {
             {inst.gitBranch ? ` · ${inst.gitBranch}` : ''}
           </span>
           {inst.kind !== 'embedded' && (
-            <span className="pane-kind" data-kind={inst.kind}>
-              {inst.kind === 'external' ? 'outside terminal' : 'background'}
+            <span className="pane-kind" data-kind={inst.kind} title={inst.kind === 'external' ? 'Running in an outside terminal' : 'Headless background session'}>
+              {inst.kind === 'external' ? 'field-deployed' : 'covert ops'}
             </span>
           )}
           {inst.recent.lastAssistantText && (
@@ -93,7 +93,7 @@ export function GridPane(props: {
         ) : inst ? (
           <div className="pane-detail">
             {inst.kind === 'background' && (
-              <div className="pane-external-note">Background session — status only.</div>
+              <div className="pane-external-note">Covert ops — status only.</div>
             )}
             <DetailPanel
               instance={inst}

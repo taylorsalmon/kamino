@@ -49,17 +49,17 @@ export function DetailPanel(props: {
       {inst.kind === 'external' && inst.state !== 'dead' && props.onAdopt && (
         props.adoptPending ? (
           <div className="adopt-banner waiting">
-            <span className="adopt-spinner">◌</span> Waiting for you to close its Windows Terminal
-            tab — Fleet takes over the session automatically the moment it exits.
+            <span className="adopt-spinner">◌</span> Extraction armed — close its Windows Terminal
+            tab and Kamino takes over the session the moment it exits.
           </div>
         ) : (
           <div className="adopt-banner">
             <span>
-              This instance runs in an outside terminal, so you can&apos;t type here yet. Move it
-              into Fleet to get an embedded terminal with the same conversation.
+              This clone is field-deployed in an outside terminal, so you can&apos;t type here yet.
+              Recall it to Kamino to get an embedded terminal with the same conversation.
             </span>
             <button className="btn primary" onClick={props.onAdopt}>
-              Move into Fleet
+              Recall to Kamino
             </button>
           </div>
         )
@@ -74,13 +74,13 @@ export function DetailPanel(props: {
       </div>
 
       <div className="section">
-        <div className="section-label">Catch me up</div>
+        <div className="section-label">Status report</div>
         {recapText ? (
           <div className="recap">{recapText}</div>
         ) : (
           <div className="actions">
             <button className="btn" onClick={catchMeUp} disabled={recapBusy}>
-              {recapBusy ? 'Summarizing…' : '✦ Catch me up'}
+              {recapBusy ? 'Incoming transmission…' : '✦ Report in'}
             </button>
             {recapErr && <span className="recap-err">{recapErr}</span>}
           </div>
@@ -88,7 +88,7 @@ export function DetailPanel(props: {
         {recapText && (
           <div className="actions" style={{ marginTop: 8 }}>
             <button className="btn" onClick={catchMeUp} disabled={recapBusy}>
-              {recapBusy ? 'Summarizing…' : 'Refresh'}
+              {recapBusy ? 'Incoming transmission…' : 'Report again'}
             </button>
           </div>
         )}
@@ -187,12 +187,12 @@ export function DetailPanel(props: {
             <button
               className="btn danger"
               onClick={() => {
-                if (confirm(`Kill ${inst.name} (pid ${inst.pid})? Its terminal tab will close the session.`)) {
+                if (confirm(`Decommission ${inst.name} (pid ${inst.pid})? Its terminal tab will close the session.`)) {
                   window.fleet.killPid(inst.pid)
                 }
               }}
             >
-              Kill instance
+              Decommission clone
             </button>
           )}
         </div>

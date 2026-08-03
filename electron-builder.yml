@@ -1,5 +1,5 @@
-appId: au.com.lkg.claude-fleet
-productName: Claude Fleet
+appId: au.com.lkg.kamino
+productName: Kamino
 directories:
   output: release
 files:

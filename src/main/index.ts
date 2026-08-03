@@ -54,7 +54,7 @@ function onHook(ev: HookEvent): void {
       const reason = ev.message || 'needs your input'
       store.setNeedsYou(ev.sessionId, reason)
       if (shouldToast(ev.sessionId)) {
-        notify(`${inst?.name ?? 'Claude'} needs you`, reason, ev.sessionId)
+        notify(`${inst?.name ?? 'Clone'} awaits orders`, reason, ev.sessionId)
       }
       break
     }
@@ -67,7 +67,7 @@ function onHook(ev: HookEvent): void {
         Date.now() - turnStartedAt > LONG_TURN_MS &&
         shouldToast(ev.sessionId)
       ) {
-        notify(`${inst.name} finished`, inst.now.title || 'Turn complete', ev.sessionId)
+        notify(`${inst.name} — mission complete`, inst.now.title || 'Turn complete', ev.sessionId)
       }
       break
     }
@@ -85,7 +85,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     backgroundColor: '#f4efe6', // matches the light theme (renderer default)
-    title: 'Claude Fleet',
+    title: 'Kamino',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -112,7 +112,7 @@ function broadcast(channel: string, ...args: unknown[]): void {
 }
 
 app.whenReady().then(() => {
-  app.setAppUserModelId('com.lkg.claude-fleet') // Windows toast identity
+  app.setAppUserModelId('au.com.lkg.kamino') // Windows toast identity
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: true })
   store.setEmbeddedPidSource(() => ptys.pids())
   store.start()

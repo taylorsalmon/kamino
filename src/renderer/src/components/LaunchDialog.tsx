@@ -56,13 +56,13 @@ export function LaunchDialog(props: {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-tabs">
           <button className={`modal-tab${tab === 'new' ? ' active' : ''}`} onClick={() => setTab('new')}>
-            New instance
+            Commission clone
           </button>
           <button
             className={`modal-tab${tab === 'resume' ? ' active' : ''}`}
             onClick={() => setTab('resume')}
           >
-            Resume session
+            Reawaken session
           </button>
           <button className="modal-close" onClick={props.onClose} aria-label="Close">
             ✕
@@ -97,7 +97,7 @@ export function LaunchDialog(props: {
               <label className="section-label">First prompt (optional)</label>
               <textarea
                 rows={3}
-                placeholder="What should this instance start working on?"
+                placeholder="The clone's mission — what should it start working on?"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
               />
@@ -112,13 +112,13 @@ export function LaunchDialog(props: {
             </div>
             <div className="modal-actions">
               <button className="btn primary" onClick={launchNew} disabled={!cwd || busy}>
-                {busy ? 'Launching…' : 'Launch'}
+                {busy ? 'Growing…' : 'Begin cloning'}
               </button>
             </div>
           </div>
         ) : (
           <div className="modal-body sessions-list">
-            {sessions.length === 0 && <div className="roster-empty">No resumable sessions found.</div>}
+            {sessions.length === 0 && <div className="roster-empty">No sessions in the archive.</div>}
             {sessions.map((s) => (
               <button key={s.sessionId} className="session-row" onClick={() => resume(s)}>
                 <span className="session-title">{s.title || s.lastPrompt || s.sessionId}</span>

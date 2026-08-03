@@ -153,6 +153,26 @@ body {
   line-height: 1;
   padding: 5px 9px;
 }
+.wordmark-sub {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.22em;
+  color: var(--faint);
+  margin-left: 10px;
+  vertical-align: 2px;
+}
+.order66-btn {
+  color: var(--coral);
+  border-color: var(--coral);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.order66-btn:hover {
+  background: var(--coral);
+  color: var(--bg0);
+}
 .count-dot {
   width: 7px;
   height: 7px;

@@ -1,5 +1,5 @@
 import type { Instance } from '../../../shared/types'
-import { agoShort, elapsed, STATE_WORD } from '../format'
+import { agoShort, elapsed, KIND_WORD, STATE_WORD } from '../format'
 
 export function InstanceCard(props: {
   instance: Instance
@@ -35,7 +35,7 @@ export function InstanceCard(props: {
           {inst.now.activity}
         </span>
         <span className="card-meta">
-          <span className="kind-tag">{inst.kind}</span>
+          <span className="kind-tag">{KIND_WORD[inst.kind] ?? inst.kind}</span>
           <span className="branch">
             {inst.repo}
             {inst.gitBranch ? ` · ${inst.gitBranch}` : ''}

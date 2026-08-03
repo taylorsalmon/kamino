@@ -1,7 +1,7 @@
 {
-  "name": "claude-fleet",
-  "version": "0.1.0",
-  "description": "Desktop manager for Claude Code instances — embedded terminals + live fleet status",
+  "name": "kamino",
+  "version": "0.2.0",
+  "description": "Kamino — clone production facility for Claude Code instances. Embedded terminals + live status for the whole army.",
   "main": "out/main/index.js",
   "private": true,
   "scripts": {

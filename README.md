@@ -1,6 +1,8 @@
-# Claude Fleet
+# Kamino
 
-Desktop manager for Claude Code instances. One window that hosts your Claude terminals **and** shows, at a glance, what every instance is actually doing right now — working, waiting on you, idle, or finished — plus what it produced (PRs, branches) and a one-click AI recap when you've been away.
+Clone production facility for Claude Code. One window that hosts your Claude terminals **and** shows, at a glance, what every clone is actually doing right now — engaged, awaiting your orders, standing by, or decommissioned — plus what it produced (PRs, branches) and a one-click AI status report when you've been away.
+
+(Formerly "Claude Fleet". Your instances are literally clones of the same model; the facility metaphor stuck. Vocabulary: commission = launch, in bay = embedded, field-deployed = outside terminal, covert ops = background, decommission = kill, **Order 66** = kill every clone on the board.)
 
 ## Run it
 
@@ -11,7 +13,7 @@ npm install
 npm run package        # → release/Claude Fleet Setup <version>.exe
 ```
 
-Run the setup exe (per-user, no admin). It installs to `%LOCALAPPDATA%\Programs\claude-fleet`, registers auto-start at login (`HKCU\...\Run\com.lkg.claude-fleet`), and enforces a single instance (port 47831 owner). To update: bump `version` in package.json, re-run `npm run package`, run the new setup exe over the top.
+Run the setup exe (per-user, no admin). It installs to `%LOCALAPPDATA%\Programs\kamino`, registers auto-start at login (`HKCU\...\Run\au.com.lkg.kamino`), and enforces a single instance (port 47831 owner). To update: bump `version` in package.json, re-run `npm run package`, run the new setup exe over the top.
 
 Dev mode (only while hacking on Fleet itself — dies with its terminal):
 
