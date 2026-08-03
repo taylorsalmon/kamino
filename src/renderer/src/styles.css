@@ -173,6 +173,16 @@ body {
   background: var(--coral);
   color: var(--bg0);
 }
+.jedi-quote {
+  font-style: italic;
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-top: 14px;
+}
+.modal-actions .jedi-quote {
+  margin: 0 auto 0 0;
+  align-self: center;
+}
 .count-dot {
   width: 7px;
   height: 7px;

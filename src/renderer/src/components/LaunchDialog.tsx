@@ -111,6 +111,7 @@ export function LaunchDialog(props: {
               </select>
             </div>
             <div className="modal-actions">
+              <span className="jedi-quote">“This is where the fun begins.”</span>
               <button className="btn primary" onClick={launchNew} disabled={!cwd || busy}>
                 {busy ? 'Growing…' : 'Begin cloning'}
               </button>
@@ -118,7 +119,11 @@ export function LaunchDialog(props: {
           </div>
         ) : (
           <div className="modal-body sessions-list">
-            {sessions.length === 0 && <div className="roster-empty">No sessions in the archive.</div>}
+            {sessions.length === 0 && (
+              <div className="roster-empty">
+                No sessions in the archive. These aren&apos;t the droids you&apos;re looking for.
+              </div>
+            )}
             {sessions.map((s) => (
               <button key={s.sessionId} className="session-row" onClick={() => resume(s)}>
                 <span className="session-title">{s.title || s.lastPrompt || s.sessionId}</span>

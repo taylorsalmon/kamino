@@ -24,6 +24,29 @@ export const STATE_WORD: Record<string, string> = {
   dead: 'DECOMMISSIONED'
 }
 
+/** Rotating flavor lines for empty states and dialogs — never for errors or
+ *  anything the user needs to parse under pressure. */
+const JEDI_QUOTES = [
+  '“Do. Or do not. There is no try.” — Yoda',
+  '“Your focus determines your reality.” — Qui-Gon Jinn',
+  '“In my experience there’s no such thing as luck.” — Obi-Wan Kenobi',
+  '“Patience you must have, my young Padawan.” — Yoda',
+  '“The Force will be with you. Always.” — Obi-Wan Kenobi',
+  '“This is where the fun begins.” — Anakin Skywalker',
+  '“A surprise, to be sure, but a welcome one.” — Sheev Palpatine',
+  '“Great, kid. Don’t get cocky.” — Han Solo',
+  '“Never tell me the odds.” — Han Solo',
+  '“Begun, the Clone War has.” — Yoda',
+  '“I find your lack of tests disturbing.” — almost Vader',
+  '“These aren’t the droids you’re looking for.” — Obi-Wan Kenobi'
+]
+
+/** Stable within the hour so the UI doesn't flicker between renders. */
+export function jediQuote(offset = 0): string {
+  const hourly = Math.floor(Date.now() / 3_600_000)
+  return JEDI_QUOTES[(hourly + offset) % JEDI_QUOTES.length]
+}
+
 export const KIND_WORD: Record<string, string> = {
   embedded: 'in bay',
   external: 'field-deployed',

@@ -16,8 +16,9 @@ asarUnpack:
   - '**/node_modules/@lydell/**'
 win:
   target: nsis
-  # skips rcedit + winCodeSign download (blocked on corporate network); exe keeps stock Electron icon/metadata
-  signAndEditExecutable: false
+  icon: build/icon.png
+  # skip code signing only — icon/metadata still applied via rcedit
+  signExecutable: false
 nsis:
   oneClick: true
   perMachine: false

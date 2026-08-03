@@ -5,7 +5,7 @@ import { DetailPanel } from './components/DetailPanel'
 import { TerminalView } from './components/TerminalView'
 import { LaunchDialog } from './components/LaunchDialog'
 import { GridPane } from './components/GridPane'
-import { STATE_WORD } from './format'
+import { jediQuote, STATE_WORD } from './format'
 
 type ViewMode = 'grid' | 'focus'
 type Theme = 'light' | 'dark'
@@ -225,7 +225,7 @@ export default function App(): React.JSX.Element {
         {live > 0 && (
           <button
             className="btn order66-btn"
-            title="Terminate every clone on the board"
+            title="Terminate every clone on the board. Unlimited power."
             onClick={executeOrder66}
           >
             Order 66
@@ -259,8 +259,9 @@ export default function App(): React.JSX.Element {
         <div className="grid-view">
           {snap.instances.length === 0 && startingPtys.length === 0 && (
             <div className="detail-empty">
-              <div className="big">KAMINO</div>
+              <div className="big">HELLO THERE.</div>
               <div>The facility is quiet. Commission a clone with “+ Commission clone”, or start one in any terminal</div>
+              <div className="jedi-quote">{jediQuote()}</div>
             </div>
           )}
           {startingPtys.map((p) => (
@@ -392,6 +393,7 @@ export default function App(): React.JSX.Element {
             <div className="detail-empty">
               <div className="big">KAMINO</div>
               <div>Select a clone to see what it&apos;s doing</div>
+              <div className="jedi-quote">{jediQuote(1)}</div>
             </div>
           )}
         </section>

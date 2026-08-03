@@ -67,7 +67,7 @@ function onHook(ev: HookEvent): void {
         Date.now() - turnStartedAt > LONG_TURN_MS &&
         shouldToast(ev.sessionId)
       ) {
-        notify(`${inst.name} — mission complete`, inst.now.title || 'Turn complete', ev.sessionId)
+        notify(`${inst.name} — mission complete`, inst.now.title || 'Another happy landing.', ev.sessionId)
       }
       break
     }

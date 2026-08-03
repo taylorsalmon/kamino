@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Kamino — Republic-crest-inspired emblem: eight tapered spokes around an
+       open ring, floating on the deep Kaminoan ocean. Original geometry. -->
+  <defs>
+    <radialGradient id="ocean" cx="50%" cy="42%" r="65%">
+      <stop offset="0%" stop-color="#173a52"/>
+      <stop offset="100%" stop-color="#0b1e2d"/>
+    </radialGradient>
+  </defs>
+  <circle cx="256" cy="256" r="248" fill="url(#ocean)"/>
+  <g fill="#e8eef2">
+    <g id="spokes">
+      <path d="M 256 40 L 276 60 L 264 168 L 248 168 L 236 60 Z" transform="rotate(0 256 256)"/>
+      <path d="M 256 40 L 276 60 L 264 168 L 248 168 L 236 60 Z" transform="rotate(45 256 256)"/>
+      <path d="M 256 40 L 276 60 L 264 168 L 248 168 L 236 60 Z" transform="rotate(90 256 256)"/>
+      <path d="M 256 40 L 276 60 L 264 168 L 248 168 L 236 60 Z" transform="rotate(135 256 256)"/>
+      <path d="M 256 40 L 276 60 L 264 168 L 248 168 L 236 60 Z" transform="rotate(180 256 256)"/>
+      <path d="M 256 40 L 276 60 L 264 168 L 248 168 L 236 60 Z" transform="rotate(225 256 256)"/>
+      <path d="M 256 40 L 276 60 L 264 168 L 248 168 L 236 60 Z" transform="rotate(270 256 256)"/>
+      <path d="M 256 40 L 276 60 L 264 168 L 248 168 L 236 60 Z" transform="rotate(315 256 256)"/>
+    </g>
+    <circle cx="256" cy="256" r="86" fill="none" stroke="#e8eef2" stroke-width="26"/>
+    <circle cx="256" cy="256" r="30" fill="#d97757"/>
+  </g>
+</svg>
