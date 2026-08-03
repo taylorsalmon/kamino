@@ -479,21 +479,21 @@ export default function App(): React.JSX.Element {
                   </span>
                 </div>
               )}
-              {selectedInstance &&
-                (selectedInstance.recent.lastPrompt || selectedInstance.recent.lastAssistantText) && (
-                  <div className="hud-row sub">
-                    {selectedInstance.recent.lastPrompt && (
-                      <span className="hud-quote" title={selectedInstance.recent.lastPrompt}>
-                        <span className="who">❯ you</span> {selectedInstance.recent.lastPrompt}
-                      </span>
-                    )}
-                    {selectedInstance.recent.lastAssistantText && (
-                      <span className="hud-quote" title={selectedInstance.recent.lastAssistantText}>
-                        <span className="who">✦ clone</span> {selectedInstance.recent.lastAssistantText}
-                      </span>
-                    )}
-                  </div>
-                )}
+              {/* always rendered: if this row appeared only once text existed,
+                  the terminal below would resize mid-typing and ConPTY's
+                  forced redraw can mangle the CLI composer */}
+              {selectedInstance && (
+                <div className="hud-row sub">
+                  <span className="hud-quote" title={selectedInstance.recent.lastPrompt}>
+                    <span className="who">❯ you</span>{' '}
+                    {selectedInstance.recent.lastPrompt || '—'}
+                  </span>
+                  <span className="hud-quote" title={selectedInstance.recent.lastAssistantText}>
+                    <span className="who">✦ clone</span>{' '}
+                    {selectedInstance.recent.lastAssistantText || '—'}
+                  </span>
+                </div>
+              )}
             </div>
           )}
           {showTerminal ? (

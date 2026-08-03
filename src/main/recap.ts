@@ -96,9 +96,17 @@ export async function recap(sessionId: string, cwd: string): Promise<RecapResult
 
 function runClaude(input: string): Promise<string> {
   return new Promise((resolve, reject) => {
+    // same pristine-env rule as PtyManager: inherited CLAUDE* markers (Fleet
+    // itself may have been launched from inside a Claude session) can break
+    // the child CLI outright
+    const env = { ...process.env } as Record<string, string>
+    for (const k of Object.keys(env)) {
+      if (/^CLAUDE/i.test(k)) delete env[k]
+    }
     const child = spawn('claude -p --model haiku', {
       shell: true, // resolves the claude shim on PATH
-      windowsHide: true
+      windowsHide: true,
+      env
     })
     let out = ''
     let err = ''
@@ -106,6 +114,10 @@ function runClaude(input: string): Promise<string> {
       child.kill()
       reject(new Error('Recap timed out after 90s'))
     }, 90_000)
+    child.on('error', (e) => {
+      clearTimeout(timer)
+      reject(e)
+    })
     child.stdout.on('data', (d) => (out += d))
     child.stderr.on('data', (d) => (err += d))
     child.on('close', (code) => {
@@ -113,6 +125,8 @@ function runClaude(input: string): Promise<string> {
       if (code === 0 && out.trim()) resolve(out.trim())
       else reject(new Error(err.trim() || `claude -p exited ${code}`))
     })
+    // EPIPE if the child dies before reading stdin — must not crash main
+    child.stdin.on('error', () => {})
     child.stdin.write(input)
     child.stdin.end()
   })

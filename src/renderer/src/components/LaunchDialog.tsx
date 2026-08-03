@@ -15,6 +15,7 @@ export function LaunchDialog(props: {
   const [prompt, setPrompt] = useState('')
   const [permissionMode, setPermissionMode] = useState('default')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   const now = Date.now()
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export function LaunchDialog(props: {
   async function launchNew(): Promise<void> {
     if (!cwd || busy) return
     setBusy(true)
+    setError('')
     try {
       const info = await window.fleet.spawn({
         cwd,
@@ -35,6 +37,8 @@ export function LaunchDialog(props: {
         permissionMode: permissionMode === 'default' ? undefined : permissionMode
       })
       props.onLaunched(info.ptyId, info.pid)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
@@ -43,9 +47,12 @@ export function LaunchDialog(props: {
   async function resume(s: RecentSession): Promise<void> {
     if (busy) return
     setBusy(true)
+    setError('')
     try {
       const info = await window.fleet.spawn({ cwd: s.cwd, resumeSessionId: s.sessionId })
       props.onLaunched(info.ptyId, info.pid)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
@@ -111,7 +118,11 @@ export function LaunchDialog(props: {
               </select>
             </div>
             <div className="modal-actions">
-              <span className="jedi-quote">“This is where the fun begins.”</span>
+              {error ? (
+                <span className="recap-err">{error}</span>
+              ) : (
+                <span className="jedi-quote">“This is where the fun begins.”</span>
+              )}
               <button className="btn primary" onClick={launchNew} disabled={!cwd || busy}>
                 {busy ? 'Growing…' : 'Begin cloning'}
               </button>

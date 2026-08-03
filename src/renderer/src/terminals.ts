@@ -13,6 +13,11 @@ export interface TermEntry {
   fit: FitAddon
   host: HTMLDivElement
   exited: boolean
+  /** last size reported to the PTY — a ConPTY resize forces the CLI to
+   *  redraw its composer, which can visibly mangle text being typed, so we
+   *  never send one unless the grid dimensions actually changed */
+  lastCols?: number
+  lastRows?: number
 }
 
 const registry = new Map<string, TermEntry>()
@@ -124,6 +129,7 @@ function wireClipboard(ptyId: string, term: Terminal, host: HTMLDivElement): voi
     if (e.type !== 'keydown' || !e.ctrlKey || e.altKey || e.metaKey) return true
     if (e.code === 'KeyC' && (e.shiftKey || term.hasSelection())) {
       if (term.hasSelection()) copySelection()
+      else return true // Ctrl+Shift+C with nothing selected — don't blank the clipboard
       return false
     }
     if (e.code === 'KeyV') {
@@ -188,5 +194,8 @@ export function fitAndReport(ptyId: string): void {
   if (!e || e.exited) return
   e.fit.fit()
   const { cols, rows } = e.term
+  if (cols === e.lastCols && rows === e.lastRows) return
+  e.lastCols = cols
+  e.lastRows = rows
   window.fleet.ptyResize(ptyId, cols, rows)
 }

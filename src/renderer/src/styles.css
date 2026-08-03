@@ -24,23 +24,24 @@
 }
 
 /* Light theme — warm paper to match the solarized-light terminals.
-   Accents are re-tuned darker so state colors keep contrast on paper. */
+   Backgrounds run brighter (near-white cards) and accents more saturated,
+   while text inks are darker, so everything reads crisper on paper. */
 :root[data-theme='light'] {
-  --bg0: #f4efe6;
-  --bg1: #fbf7ef;
-  --bg2: #efe8db;
-  --bg3: #e7ddcc;
-  --line: #ddd3c1;
-  --line-bright: #c9bca4;
-  --text: #33302a;
-  --muted: #6f675a;
-  --faint: #9a917f;
-  --clay: #c25a3a;
-  --clay-dim: #e5c3b4;
-  --amber: #9a6f14;
-  --coral: #c43d3d;
-  --sage: #2e7d54;
-  --violet: #6d4fc2;
+  --bg0: #f8f4ea;
+  --bg1: #fffdf6;
+  --bg2: #f2ebdc;
+  --bg3: #eadfc9;
+  --line: #e0d6c2;
+  --line-bright: #c9bb9d;
+  --text: #26221a;
+  --muted: #5b5342;
+  --faint: #948a72;
+  --clay: #c14a20;
+  --clay-dim: #ecc9b8;
+  --amber: #a87700;
+  --coral: #d63031;
+  --sage: #1e8a52;
+  --violet: #7048d6;
   --ghost: #a89e8c;
 }
 
@@ -181,7 +182,8 @@ body {
   color: var(--faint);
   margin-top: 14px;
 }
-.modal-actions .jedi-quote {
+.modal-actions .jedi-quote,
+.modal-actions .recap-err {
   margin: 0 auto 0 0;
   align-self: center;
 }
@@ -377,7 +379,7 @@ body {
   text-overflow: ellipsis;
 }
 .card[data-state='busy'] .card-activity {
-  color: #c9a35f;
+  color: var(--amber);
 }
 .card[data-state='needs-you'] .card-activity {
   color: var(--coral);
@@ -659,12 +661,12 @@ body {
   outline-offset: 1px;
 }
 .btn.primary {
-  background: var(--clay-dim);
+  background: var(--clay);
   border-color: var(--clay);
   color: #fff;
 }
 .btn.primary:hover {
-  background: var(--clay);
+  filter: brightness(1.12);
 }
 .btn.danger:hover {
   border-color: var(--coral);
@@ -731,6 +733,12 @@ body {
   align-items: center;
   gap: 12px;
   min-width: 0;
+}
+/* sub rows are locked to one height: HUD growth would resize the terminal
+   below and force a ConPTY redraw while the user is typing */
+.hud-row.sub {
+  height: 18px;
+  overflow: hidden;
 }
 .hud-row.sub .workspace-activity {
   flex-shrink: 1;
@@ -883,7 +891,7 @@ body {
   flex: 1;
 }
 .pane-strip[data-state='busy'] .pane-activity {
-  color: #c9a35f;
+  color: var(--amber);
 }
 .pane-strip[data-state='needs-you'] .pane-activity {
   color: var(--coral);

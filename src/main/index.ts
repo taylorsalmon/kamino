@@ -6,7 +6,7 @@ import * as path from 'node:path'
 import { InstanceStore } from './instance-store'
 import { PtyManager } from './pty-manager'
 import { HookServer, type HookEvent } from './hook-server'
-import { hooksInstalled, installHooks } from './hook-installer'
+import { hooksInstalled, installHooks, migrateHooks } from './hook-installer'
 import { recentProjects, recentSessions } from './recents'
 import { recap } from './recap'
 import { PrStatusPoller } from './pr-status'
@@ -99,6 +99,22 @@ function createWindow(): void {
 
   win.on('ready-to-show', () => win?.show())
 
+  // closing the window kills every embedded clone — never do that silently
+  win.on('close', (e) => {
+    const n = ptys.list().length
+    if (n === 0) return
+    const choice = dialog.showMessageBoxSync(win!, {
+      type: 'warning',
+      buttons: ['Close and terminate', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Kamino',
+      message: `${n} embedded clone${n === 1 ? ' is' : 's are'} still running.`,
+      detail: 'Closing Kamino ends their sessions. Unsaved work in a running turn is lost.'
+    })
+    if (choice !== 0) e.preventDefault()
+  })
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
@@ -118,6 +134,7 @@ function broadcast(channel: string, ...args: unknown[]): void {
 app.whenReady().then(() => {
   app.setAppUserModelId('au.com.lkg.kamino') // Windows toast identity
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: true })
+  migrateHooks() // repair hook commands written by older Fleet versions
   store.setEmbeddedPidSource(() => ptys.pids())
   store.start()
   store.on('snapshot', (snap: FleetSnapshot) => {
