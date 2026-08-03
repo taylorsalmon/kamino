@@ -13,6 +13,8 @@ export function GridPane(props: {
   instance: Instance | null
   ptyId: string | null
   now: number
+  /** position on the wall — slots 0-8 get a Ctrl+n jump badge */
+  slot?: number
   adoptPending: boolean
   prStatus?: PrStatusMap
   onAdopt: () => void
@@ -37,6 +39,11 @@ export function GridPane(props: {
     <div className="pane" data-state={state}>
       <div className="pane-strip" data-state={state}>
         <span className="pane-rail" />
+        {props.slot != null && props.slot < 9 && (
+          <span className="pane-slot" title={`Ctrl+${props.slot + 1} puts your keyboard here`}>
+            {props.slot + 1}
+          </span>
+        )}
         <span className="pane-name">{inst?.name ?? 'growing…'}</span>
         <span className="state-word" data-state={state}>
           {inst ? STATE_WORD[inst.state] : 'CLONING'}
