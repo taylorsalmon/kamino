@@ -10,6 +10,7 @@ import { hooksInstalled, installHooks, migrateHooks } from './hook-installer'
 import { recentProjects, recentSessions } from './recents'
 import { recap } from './recap'
 import { PrStatusPoller } from './pr-status'
+import { checkRepo } from './wrapup'
 import type { FleetSnapshot, LaunchRequest } from '../shared/types'
 
 const store = new InstanceStore()
@@ -219,6 +220,22 @@ app.whenReady().then(() => {
   ipcMain.handle('hooks:install', () => installHooks())
   ipcMain.on('ui:selected', (_e, sessionId: string | null) => {
     lastSelectedSession = sessionId
+  })
+
+  // ── wrap-up check ────────────────────────────────────────────────────
+  ipcMain.handle('wrapup:check', async () => {
+    // one row per working folder — several clones can share a repo
+    const byCwd = new Map<string, string[]>()
+    for (const i of store.snapshot().instances) {
+      if (i.state === 'dead' || !i.cwd) continue
+      byCwd.set(i.cwd, [...(byCwd.get(i.cwd) ?? []), i.name])
+    }
+    for (const p of ptys.list()) {
+      if (p.cwd && !byCwd.has(p.cwd)) byCwd.set(p.cwd, ['new clone'])
+    }
+    const repos = await Promise.all([...byCwd].map(([cwd, clones]) => checkRepo(cwd, clones)))
+    repos.sort((a, b) => a.repo.localeCompare(b.repo))
+    return { repos, generatedAt: Date.now() }
   })
 
   // ── misc ─────────────────────────────────────────────────────────────

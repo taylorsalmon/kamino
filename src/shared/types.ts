@@ -108,3 +108,31 @@ export interface PtyInfo {
   pid: number
   cwd: string
 }
+
+/** wrap-up check: one repo the fleet is working in, and whether closing the
+ *  lid would lose anything */
+export interface WrapupRepo {
+  cwd: string
+  repo: string
+  /** names of the clones working in this folder */
+  clones: string[]
+  branch: string
+  /** uncommitted files (staged, unstaged, untracked) */
+  dirty: number
+  /** commits not yet on the upstream branch */
+  ahead: number
+  /** branch has no remote counterpart at all */
+  noUpstream: boolean
+  /** on main/master — no PR expected */
+  defaultBranch: boolean
+  pr: { number: number; url: string; title: string } | null
+  /** gh unavailable/errored — PR state unknown */
+  prError?: string
+  /** folder isn't a git repo / git failed */
+  error?: string
+}
+
+export interface WrapupReport {
+  repos: WrapupRepo[]
+  generatedAt: number
+}

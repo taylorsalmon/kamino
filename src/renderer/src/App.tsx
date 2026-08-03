@@ -4,6 +4,7 @@ import { InstanceCard } from './components/InstanceCard'
 import { DetailPanel } from './components/DetailPanel'
 import { TerminalView } from './components/TerminalView'
 import { LaunchDialog } from './components/LaunchDialog'
+import { WrapupDialog } from './components/WrapupDialog'
 import { GridPane } from './components/GridPane'
 import { focusTerminal, setTermFontSize } from './terminals'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
@@ -37,6 +38,8 @@ export default function App(): React.JSX.Element {
   const [ptyRefs, setPtyRefs] = useState<PtyRef[]>([])
   const [showLaunch, setShowLaunch] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
+  const [showWrapup, setShowWrapup] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<ViewMode>(
     () => (localStorage.getItem('fleet:view') as ViewMode) || 'grid'
   )
@@ -379,6 +382,35 @@ export default function App(): React.JSX.Element {
         <button className="btn primary new-btn" onClick={() => setShowLaunch(true)}>
           + Commission clone
         </button>
+        <div className="topbar-menu">
+          <button
+            className={`btn menu-btn${menuOpen ? ' active' : ''}`}
+            title="Fleet actions"
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            ⋯
+          </button>
+          {menuOpen && (
+            <>
+              {/* invisible backdrop: any outside click closes the menu */}
+              <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
+              <div className="menu-panel">
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setShowWrapup(true)
+                  }}
+                >
+                  <span className="menu-item-title">🧹 End-of-shift sweep</span>
+                  <span className="menu-item-sub">
+                    check every repo is committed, pushed &amp; on a PR before you close out
+                  </span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         <div className="topbar-clock">
           {new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
@@ -655,6 +687,7 @@ export default function App(): React.JSX.Element {
       )}
 
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
+      {showWrapup && <WrapupDialog onClose={() => setShowWrapup(false)} />}
     </div>
   )
 }
