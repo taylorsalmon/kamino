@@ -18,6 +18,7 @@ declare global {
       recentProjects: () => Promise<RecentProject[]>
       recentSessions: () => Promise<RecentSession[]>
       pickFolder: () => Promise<string | null>
+      confirm: (message: string, detail?: string) => Promise<boolean>
       recap: (sessionId: string) => Promise<{ text: string; generatedAt: number; fromCache: boolean }>
       hooksStatus: () => Promise<boolean>
       hooksInstall: () => Promise<{ installed: string[]; settingsPath: string }>

@@ -192,6 +192,21 @@ app.whenReady().then(() => {
     return res.canceled ? null : res.filePaths[0]
   })
 
+  // window.confirm() breaks keyboard focus for the whole window on Windows
+  // (electron#19977) — every terminal goes deaf until you alt-tab away and
+  // back. Confirmations must go through a main-process dialog instead.
+  ipcMain.handle('dialog:confirm', async (_e, message: string, detail?: string) => {
+    const res = await dialog.showMessageBox(win!, {
+      type: 'warning',
+      buttons: ['OK', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+      message: String(message),
+      detail: detail ? String(detail) : undefined
+    })
+    return res.response === 0
+  })
+
   // ── recap ────────────────────────────────────────────────────────────
   ipcMain.handle('recap:get', async (_e, sessionId: string) => {
     const inst = store.get(sessionId)

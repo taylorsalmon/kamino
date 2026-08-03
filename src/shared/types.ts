@@ -36,6 +36,12 @@ export interface InstanceNow {
   title: string
   /** What it is literally doing right now: "Editing src/lib/seat.ts", "Running: npm test", "Waiting: approve Bash(...)" */
   activity: string
+  /**
+   * Only while state is 'needs-you': the full text of what it's blocked on —
+   * the AskUserQuestion question + options, the command awaiting approval,
+   * the plan headline, or its last reply's closing question.
+   */
+  pendingAsk?: string
   /** ms since the current turn started (only while busy) */
   turnStartedAt?: number
   /** Prompts queued behind the current turn */

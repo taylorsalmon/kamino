@@ -66,6 +66,13 @@ export function DetailPanel(props: {
         )
       )}
 
+      {inst.state === 'needs-you' && inst.now.pendingAsk && (
+        <div className="section">
+          <div className="section-label">Awaiting orders — what it needs</div>
+          <div className="ask-detail">{inst.now.pendingAsk}</div>
+        </div>
+      )}
+
       <div className="section">
         <div className="section-label">Now</div>
         <div className="now-line">
@@ -205,8 +212,8 @@ export function DetailPanel(props: {
           {inst.kind === 'external' && inst.state !== 'dead' && (
             <button
               className="btn danger"
-              onClick={() => {
-                if (confirm(`Decommission ${inst.name} (pid ${inst.pid})? Its terminal tab will close the session.`)) {
+              onClick={async () => {
+                if (await window.fleet.confirm(`Decommission ${inst.name} (pid ${inst.pid})?`, 'Its terminal tab will close the session.')) {
                   window.fleet.killPid(inst.pid)
                 }
               }}

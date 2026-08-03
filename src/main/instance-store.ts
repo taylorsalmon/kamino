@@ -16,10 +16,12 @@ import {
   CLAUDE_DIR,
   SESSIONS_DIR,
   describeAssistant,
+  describePendingAsk,
   extractUserPrompt,
   isPidAlive,
   readSessionRegistry,
   transcriptPath,
+  type PendingToolUse,
   type SessionRegistryEntry,
   type TranscriptRecord
 } from './claude-data'
@@ -34,6 +36,9 @@ interface Tracked {
   /** true once the initial full-file read has completed */
   caughtUp: boolean
   registry: SessionRegistryEntry | null
+  /** Last tool_use the assistant issued with no result yet — what a
+   *  permission prompt would be blocked on. Cleared when its result lands. */
+  lastToolUse: PendingToolUse | null
   diedAt?: number
 }
 
@@ -96,7 +101,11 @@ export class InstanceStore extends EventEmitter {
     const t = this.tracked.get(sessionId)
     if (!t || t.instance.state === 'dead') return
     t.instance.state = 'needs-you'
-    t.instance.now.activity = `Waiting: ${reason}`
+    // The hook message is often just "Claude is waiting for your input" —
+    // pull the actual ask (question, command, plan) from the transcript.
+    const ask = describePendingAsk(t.lastToolUse, t.instance.recent.lastAssistantText)
+    t.instance.now.pendingAsk = ask || undefined
+    t.instance.now.activity = `Waiting: ${ask || reason}`
     this.queueBroadcast()
   }
 
@@ -105,6 +114,7 @@ export class InstanceStore extends EventEmitter {
     const t = this.tracked.get(sessionId)
     if (!t || t.instance.state !== 'needs-you') return
     t.instance.state = nextState
+    t.instance.now.pendingAsk = undefined
     if (nextState === 'busy') t.instance.now.activity = 'Thinking…'
     this.queueBroadcast()
   }
@@ -182,7 +192,7 @@ export class InstanceStore extends EventEmitter {
       lastActiveAt: entry.updatedAt ?? entry.startedAt,
       version: entry.version
     }
-    const t: Tracked = { instance, tailer: null, caughtUp: false, registry: entry }
+    const t: Tracked = { instance, tailer: null, caughtUp: false, registry: entry, lastToolUse: null }
     const file = transcriptPath(entry.cwd, entry.sessionId)
     t.tailer = new TranscriptTailer(
       file,
@@ -257,15 +267,20 @@ export class InstanceStore extends EventEmitter {
         } else if (rec.subtype === 'turn_duration') {
           // turn ended
           inst.now.turnStartedAt = undefined
+          t.lastToolUse = null
           if (inst.state === 'busy' && t.caughtUp) inst.state = 'idle'
           if (inst.now.title) inst.now.activity = `Done: ${inst.now.title}`
         }
         return
       case 'user': {
         if (rec.isSidechain) return
+        // a tool result arriving means the pending tool ran — it's no longer
+        // what a permission prompt could be blocked on
+        if (rec.toolUseResult) t.lastToolUse = null
         const prompt = extractUserPrompt(rec)
         if (prompt) {
           inst.recent.lastPrompt = prompt
+          inst.now.pendingAsk = undefined
           inst.recent.turns += 1
           inst.now.queued = inst.now.queued.filter((q) => q !== prompt)
           inst.now.turnStartedAt = rec.timestamp ? Date.parse(rec.timestamp) : Date.now()
@@ -280,6 +295,12 @@ export class InstanceStore extends EventEmitter {
       case 'assistant': {
         if (rec.isSidechain) return
         if (rec.message?.model) inst.model = rec.message.model
+        const content = rec.message?.content
+        if (Array.isArray(content)) {
+          for (const blk of content) {
+            if (blk?.type === 'tool_use' && blk.name) t.lastToolUse = { name: blk.name, input: blk.input }
+          }
+        }
         const d = describeAssistant(rec)
         if (d) {
           inst.now.activity = d.activity

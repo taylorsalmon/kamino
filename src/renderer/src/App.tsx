@@ -5,10 +5,23 @@ import { DetailPanel } from './components/DetailPanel'
 import { TerminalView } from './components/TerminalView'
 import { LaunchDialog } from './components/LaunchDialog'
 import { GridPane } from './components/GridPane'
+import { setTermFontSize } from './terminals'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
 type ViewMode = 'grid' | 'focus'
 type Theme = 'light' | 'dark'
+type Density = 'roomy' | 'fit' | 'max'
+
+/** grid density: how hard the wall packs clones onto the screen.
+ *  min   — column min-width; narrower columns = more side by side
+ *  rowMin— pane floor; below this the wall scrolls instead of shrinking
+ *          panes into unusable slivers
+ *  font  — terminal glyph size, so Max actually fits more columns of text */
+const DENSITY: Record<Density, { min: number; rowMin: number; font: number }> = {
+  roomy: { min: 560, rowMin: 320, font: 14 },
+  fit: { min: 430, rowMin: 240, font: 13 },
+  max: { min: 330, rowMin: 185, font: 11 }
+}
 
 interface PtyRef {
   ptyId: string
@@ -30,6 +43,15 @@ export default function App(): React.JSX.Element {
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem('fleet:theme') as Theme) || 'light'
   )
+  const [density, setDensity] = useState<Density>(() => {
+    const d = localStorage.getItem('fleet:density') as Density
+    return d in DENSITY ? d : 'fit'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('fleet:density', density)
+    setTermFontSize(DENSITY[density].font)
+  }, [density])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -173,14 +195,15 @@ export default function App(): React.JSX.Element {
 
   const showTerminal = selectedPty && !showInfo
 
-  function executeOrder66(): void {
+  async function executeOrder66(): Promise<void> {
     const targets = snap.instances.filter((i) => i.state !== 'dead')
     const n = targets.length + startingPtys.length
     if (n === 0) return
     if (
-      !confirm(
-        `Execute Order 66?\n\nAll ${n} clone${n === 1 ? '' : 's'} on this board will be terminated — embedded, outside terminals, and background sessions alike.\n\nGood soldiers follow orders.`
-      )
+      !(await window.fleet.confirm(
+        'Execute Order 66?',
+        `All ${n} clone${n === 1 ? '' : 's'} on this board will be terminated — embedded, outside terminals, and background sessions alike.\n\nGood soldiers follow orders.`
+      ))
     )
       return
     for (const p of startingPtys) window.fleet.ptyKill(p.ptyId)
@@ -237,6 +260,31 @@ export default function App(): React.JSX.Element {
             ▣ Focus
           </button>
         </div>
+        {view === 'grid' && (
+          <div className="view-toggle density-toggle">
+            <button
+              className={`view-btn${density === 'roomy' ? ' active' : ''}`}
+              onClick={() => setDensity('roomy')}
+              title="Roomy — big panes, few clones"
+            >
+              ▢
+            </button>
+            <button
+              className={`view-btn${density === 'fit' ? ' active' : ''}`}
+              onClick={() => setDensity('fit')}
+              title="Fit — balanced"
+            >
+              ▦
+            </button>
+            <button
+              className={`view-btn${density === 'max' ? ' active' : ''}`}
+              onClick={() => setDensity('max')}
+              title="Max — smallest readable panes, as many clones as fit"
+            >
+              ▩
+            </button>
+          </div>
+        )}
         <button
           className="btn theme-btn"
           title={theme === 'light' ? 'Night cycle' : 'Day cycle'}
@@ -278,7 +326,16 @@ export default function App(): React.JSX.Element {
       )}
 
       {view === 'grid' ? (
-        <div className="grid-view">
+        <div
+          className="grid-view"
+          data-density={density}
+          style={
+            {
+              '--pane-min': `${DENSITY[density].min}px`,
+              '--pane-row-min': `${DENSITY[density].rowMin}px`
+            } as React.CSSProperties
+          }
+        >
           {snap.instances.length === 0 && startingPtys.length === 0 && (
             <div className="detail-empty">
               <div className="big">HELLO THERE.</div>
@@ -418,8 +475,8 @@ export default function App(): React.JSX.Element {
                 )}
                 <button
                   className="btn danger"
-                  onClick={() => {
-                    if (confirm('Decommission this clone? Unsaved work in its turn is lost.')) {
+                  onClick={async () => {
+                    if (await window.fleet.confirm('Decommission this clone?', 'Unsaved work in its turn is lost.')) {
                       window.fleet.ptyKill(selectedPty.ptyId)
                     }
                   }}
