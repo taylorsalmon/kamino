@@ -54,10 +54,16 @@ export class PtyManager extends EventEmitter {
     }
     if (opts.initialPrompt) args.push(opts.initialPrompt)
 
-    // Kamino itself may have been launched from a colour-suppressed shell
-    // (NO_COLOR=1, TERM=dumb — agent harnesses do this). The clone's terminal
-    // is a real xterm, so never let that leak into the child.
+    // The clone must start from a pristine environment. Kamino itself may
+    // have been launched from inside a Claude Code session or a
+    // colour-suppressed agent shell, and inherited markers break the child:
+    // CLAUDE_CODE_CHILD_SESSION alone disables transcript saving AND the
+    // ~/.claude/sessions registry entry — which is how a terminal binds to
+    // its card, so the clone stays "growing…" forever with an empty HUD.
     const env = { ...process.env } as Record<string, string>
+    for (const k of Object.keys(env)) {
+      if (/^CLAUDE/i.test(k)) delete env[k]
+    }
     delete env.NO_COLOR
     if (!env.TERM || env.TERM === 'dumb') env.TERM = 'xterm-256color'
     if (!env.COLORTERM) env.COLORTERM = 'truecolor'

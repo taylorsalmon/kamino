@@ -116,6 +116,11 @@ function wireClipboard(ptyId: string, term: Terminal, host: HTMLDivElement): voi
   }
 
   term.attachCustomKeyEventHandler((e) => {
+    // F2 flips Terminal ⇄ Intel even while the terminal owns the keyboard
+    if (e.type === 'keydown' && e.key === 'F2') {
+      window.dispatchEvent(new Event('kamino:toggle-info'))
+      return false
+    }
     if (e.type !== 'keydown' || !e.ctrlKey || e.altKey || e.metaKey) return true
     if (e.code === 'KeyC' && (e.shiftKey || term.hasSelection())) {
       if (term.hasSelection()) copySelection()

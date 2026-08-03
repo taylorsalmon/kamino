@@ -73,6 +73,24 @@ export default function App(): React.JSX.Element {
 
   const [hooksOk, setHooksOk] = useState(true)
 
+  // F2 flips Terminal ⇄ Intel from anywhere — the terminal forwards it via
+  // a window event since xterm otherwise owns the keyboard
+  useEffect(() => {
+    const toggle = (): void => setShowInfo((v) => !v)
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'F2') return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      e.preventDefault()
+      toggle()
+    }
+    window.addEventListener('kamino:toggle-info', toggle)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('kamino:toggle-info', toggle)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [])
+
   useEffect(() => {
     window.fleet.getFleet().then(setSnap)
     window.fleet.getPrStatus().then(setPrStatus)
@@ -377,9 +395,20 @@ export default function App(): React.JSX.Element {
                 )}
                 <span className="topbar-spacer" />
                 {selectedInstance && (
-                  <button className="btn" onClick={() => setShowInfo((v) => !v)}>
-                    {showInfo ? 'Terminal' : 'Info'}
-                  </button>
+                  <div className="view-toggle" title="F2 to switch">
+                    <button
+                      className={`view-btn${!showInfo ? ' active' : ''}`}
+                      onClick={() => setShowInfo(false)}
+                    >
+                      ⌨ Terminal
+                    </button>
+                    <button
+                      className={`view-btn${showInfo ? ' active' : ''}`}
+                      onClick={() => setShowInfo(true)}
+                    >
+                      ✦ Intel
+                    </button>
+                  </div>
                 )}
                 <button
                   className="btn danger"
