@@ -4,8 +4,18 @@ Desktop manager for Claude Code instances. One window that hosts your Claude ter
 
 ## Run it
 
+Installed app (the normal way — survives terminal closes, auto-starts at login):
+
 ```
 npm install
+npm run package        # → release/Claude Fleet Setup <version>.exe
+```
+
+Run the setup exe (per-user, no admin). It installs to `%LOCALAPPDATA%\Programs\claude-fleet`, registers auto-start at login (`HKCU\...\Run\com.lkg.claude-fleet`), and enforces a single instance (port 47831 owner). To update: bump `version` in package.json, re-run `npm run package`, run the new setup exe over the top.
+
+Dev mode (only while hacking on Fleet itself — dies with its terminal):
+
+```
 npm run dev
 ```
 
@@ -50,7 +60,6 @@ src/renderer/          React UI (roster cards, terminal workspace, dialogs)
 
 ## Backlog
 
-- Wall view: zoomed-out grid of all instances with live activity lines
 - PR CI/review status overlay (`gh pr view`) on cards
-- Package as installable app (electron-builder) + auto-start
 - Turn token/cost per instance from transcript `usage` records
+- App icon (packaged exe uses the stock Electron icon — `signAndEditExecutable: false` skips rcedit because winCodeSign may be blocked on the corporate network)

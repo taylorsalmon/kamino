@@ -54,9 +54,39 @@ export function GridPane(props: {
           <button className="pane-chip focus-btn" title="Open in focus view" onClick={props.onFocus}>
             ⤢
           </button>
+          <button
+            className="pane-chip kill-btn"
+            title="Kill this instance"
+            onClick={() => {
+              const name = inst?.name ?? 'this instance'
+              if (!confirm(`Kill ${name}? Unsaved work in its turn is lost.`)) return
+              if (ptyId) window.fleet.ptyKill(ptyId)
+              else if (inst) window.fleet.killPid(inst.pid)
+            }}
+          >
+            ✕
+          </button>
         </span>
       </div>
-      {inst?.now.title && <div className="pane-title">{inst.now.title}</div>}
+      {inst && (
+        <div className="pane-title">
+          {inst.now.title && <span className="pane-task">{inst.now.title}</span>}
+          <span className="pane-branch">
+            {inst.repo}
+            {inst.gitBranch ? ` · ${inst.gitBranch}` : ''}
+          </span>
+          {inst.kind !== 'embedded' && (
+            <span className="pane-kind" data-kind={inst.kind}>
+              {inst.kind === 'external' ? 'outside terminal' : 'background'}
+            </span>
+          )}
+          {inst.recent.lastAssistantText && (
+            <span className="pane-last" title={inst.recent.lastAssistantText}>
+              {inst.recent.lastAssistantText}
+            </span>
+          )}
+        </div>
+      )}
       <div className="pane-body">
         {ptyId ? (
           <TerminalView ptyId={ptyId} autoFocus={false} />

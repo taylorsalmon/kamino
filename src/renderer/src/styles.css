@@ -22,6 +22,26 @@
   --sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
 }
 
+/* Light theme — warm paper to match the solarized-light terminals.
+   Accents are re-tuned darker so state colors keep contrast on paper. */
+:root[data-theme='light'] {
+  --bg0: #f4efe6;
+  --bg1: #fbf7ef;
+  --bg2: #efe8db;
+  --bg3: #e7ddcc;
+  --line: #ddd3c1;
+  --line-bright: #c9bca4;
+  --text: #33302a;
+  --muted: #6f675a;
+  --faint: #9a917f;
+  --clay: #c25a3a;
+  --clay-dim: #e5c3b4;
+  --amber: #9a6f14;
+  --coral: #c43d3d;
+  --sage: #2e7d54;
+  --ghost: #a89e8c;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -121,6 +141,17 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+.fleet-counts .kind-split {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  cursor: help;
+}
+.theme-btn {
+  font-size: 14px;
+  line-height: 1;
+  padding: 5px 9px;
 }
 .count-dot {
   width: 7px;
@@ -766,16 +797,61 @@ body {
 .pane-chip.focus-btn:hover {
   color: var(--text);
 }
+.pane-chip.kill-btn {
+  color: var(--faint);
+  cursor: pointer;
+  font-size: 11px;
+}
+.pane-chip.kill-btn:hover {
+  color: var(--coral);
+}
 
 .pane-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   font-size: 11.5px;
   color: var(--muted);
   padding: 4px 12px 5px;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
   overflow: hidden;
+  flex-shrink: 0;
+}
+.pane-task {
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
   text-overflow: ellipsis;
   flex-shrink: 0;
+  max-width: 45%;
+}
+.pane-branch {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  flex-shrink: 0;
+}
+.pane-kind {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--amber);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+.pane-kind[data-kind='background'] {
+  color: var(--ghost);
+}
+.pane-last {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  font-style: italic;
+  color: var(--faint);
 }
 
 .pane-body {

@@ -1,0 +1,26 @@
+appId: au.com.lkg.claude-fleet
+productName: Claude Fleet
+directories:
+  output: release
+files:
+  - out/**
+  - '!src/**'
+  - '!scripts/**'
+  - '!electron.vite.config.ts'
+  - '!electron-builder.yml'
+  - '!README.md'
+  - '!fleet-dev.log'
+  - '!tsconfig*.json'
+# node-pty ships N-API prebuilds that must live on the real filesystem, not inside asar
+asarUnpack:
+  - '**/node_modules/@lydell/**'
+win:
+  target: nsis
+  # skips rcedit + winCodeSign download (blocked on corporate network); exe keeps stock Electron icon/metadata
+  signAndEditExecutable: false
+nsis:
+  oneClick: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
+# @lydell/node-pty is prebuilt N-API — rebuilding would need a local toolchain and isn't required
+npmRebuild: false

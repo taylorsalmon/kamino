@@ -8,6 +8,7 @@ import { GridPane } from './components/GridPane'
 import { STATE_WORD } from './format'
 
 type ViewMode = 'grid' | 'focus'
+type Theme = 'light' | 'dark'
 
 interface PtyRef {
   ptyId: string
@@ -25,6 +26,14 @@ export default function App(): React.JSX.Element {
   const [view, setView] = useState<ViewMode>(
     () => (localStorage.getItem('fleet:view') as ViewMode) || 'grid'
   )
+  const [theme, setTheme] = useState<Theme>(
+    () => (localStorage.getItem('fleet:theme') as Theme) || 'light'
+  )
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('fleet:theme', theme)
+  }, [theme])
 
   function switchView(v: ViewMode): void {
     setView(v)
@@ -132,6 +141,13 @@ export default function App(): React.JSX.Element {
     return c
   }, [snap])
   const live = counts.busy + counts['needs-you'] + counts.idle
+  const kinds = useMemo(() => {
+    const k = { embedded: 0, external: 0, background: 0 }
+    for (const i of snap.instances) {
+      if (i.state !== 'dead' && i.kind in k) k[i.kind as keyof typeof k]++
+    }
+    return k
+  }, [snap])
 
   const showTerminal = selectedPty && !showInfo
 
@@ -156,6 +172,12 @@ export default function App(): React.JSX.Element {
               {counts['needs-you']} need you
             </span>
           )}
+          <span
+            className="count kind-split"
+            title="Fleet sees every Claude Code process on this machine — including ones running in other terminals and headless/background sessions, not just the terminals you have open"
+          >
+            {kinds.embedded} in Fleet · {kinds.external} outside · {kinds.background} background
+          </span>
         </div>
         <div className="topbar-spacer" />
         <div className="view-toggle">
@@ -174,6 +196,13 @@ export default function App(): React.JSX.Element {
             ▣ Focus
           </button>
         </div>
+        <button
+          className="btn theme-btn"
+          title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+          onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+        >
+          {theme === 'light' ? '☾' : '☀'}
+        </button>
         <button className="btn primary new-btn" onClick={() => setShowLaunch(true)}>
           + New instance
         </button>

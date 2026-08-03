@@ -16,6 +16,19 @@ let win: BrowserWindow | null = null
 
 const LONG_TURN_MS = 30_000
 
+// one Fleet only — a second launch (auto-start + shortcut) would fight over port 47831
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+    }
+  })
+}
+
 function notify(title: string, body: string, sessionId: string): void {
   if (!Notification.isSupported()) return
   const n = new Notification({ title, body, silent: false })
@@ -71,7 +84,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 600,
     show: false,
-    backgroundColor: '#0b0f14',
+    backgroundColor: '#f4efe6', // matches the light theme (renderer default)
     title: 'Claude Fleet',
     autoHideMenuBar: true,
     webPreferences: {
@@ -100,6 +113,7 @@ function broadcast(channel: string, ...args: unknown[]): void {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.lkg.claude-fleet') // Windows toast identity
+  if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: true })
   store.setEmbeddedPidSource(() => ptys.pids())
   store.start()
   store.on('snapshot', (snap) => broadcast('fleet:snapshot', snap))
