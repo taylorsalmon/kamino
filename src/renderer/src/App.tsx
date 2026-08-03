@@ -5,7 +5,7 @@ import { DetailPanel } from './components/DetailPanel'
 import { TerminalView } from './components/TerminalView'
 import { LaunchDialog } from './components/LaunchDialog'
 import { GridPane } from './components/GridPane'
-import { agoShort, elapsed, jediQuote, prBadge, STATE_WORD } from './format'
+import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
 type ViewMode = 'grid' | 'focus'
 type Theme = 'light' | 'dark'
@@ -428,7 +428,7 @@ export default function App(): React.JSX.Element {
                     {selectedInstance.now.activity}
                   </span>
                   <span className="topbar-spacer" />
-                  {selectedInstance.recent.prs.map((pr) => {
+                  {selectedInstance.recent.prs.slice(-3).map((pr) => {
                     const badge = prBadge(prStatus[pr.url])
                     return (
                       <button
@@ -446,11 +446,48 @@ export default function App(): React.JSX.Element {
                       </button>
                     )
                   })}
+                  {selectedInstance.recent.prs.length > 3 && (
+                    <span
+                      className="pane-chip"
+                      title={selectedInstance.recent.prs.map((p) => `#${p.number}`).join(' ')}
+                    >
+                      +{selectedInstance.recent.prs.length - 3}
+                    </span>
+                  )}
                   {selectedInstance.now.queued.length > 0 && (
                     <span className="pane-chip queue">⧗ {selectedInstance.now.queued.length} queued</span>
                   )}
                 </div>
               )}
+              {selectedInstance && (
+                <div className="hud-row sub">
+                  <span className="hud-meta">
+                    <span>{KIND_WORD[selectedInstance.kind] ?? selectedInstance.kind}</span>
+                    <span>
+                      {selectedInstance.repo}
+                      {selectedInstance.gitBranch ? ` · ${selectedInstance.gitBranch}` : ''}
+                    </span>
+                    {selectedInstance.model && <span>{selectedInstance.model}</span>}
+                    {selectedInstance.permissionMode && <span>{selectedInstance.permissionMode}</span>}
+                    <span>{selectedInstance.recent.turns} turns</span>
+                  </span>
+                </div>
+              )}
+              {selectedInstance &&
+                (selectedInstance.recent.lastPrompt || selectedInstance.recent.lastAssistantText) && (
+                  <div className="hud-row sub">
+                    {selectedInstance.recent.lastPrompt && (
+                      <span className="hud-quote" title={selectedInstance.recent.lastPrompt}>
+                        <span className="who">❯ you</span> {selectedInstance.recent.lastPrompt}
+                      </span>
+                    )}
+                    {selectedInstance.recent.lastAssistantText && (
+                      <span className="hud-quote" title={selectedInstance.recent.lastAssistantText}>
+                        <span className="who">✦ clone</span> {selectedInstance.recent.lastAssistantText}
+                      </span>
+                    )}
+                  </div>
+                )}
             </div>
           )}
           {showTerminal ? (

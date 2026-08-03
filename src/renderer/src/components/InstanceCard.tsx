@@ -42,9 +42,9 @@ export function InstanceCard(props: {
             {inst.gitBranch ? ` · ${inst.gitBranch}` : ''}
           </span>
           {inst.recent.prs.length > 0 && (
-            <span className="pr-chip">
+            <span className="pr-chip" title={inst.recent.prs.map((p) => `#${p.number}`).join(' ')}>
               PR{' '}
-              {inst.recent.prs.map((p) => {
+              {inst.recent.prs.slice(-2).map((p) => {
                 const badge = prBadge(props.prStatus?.[p.url])
                 return (
                   <span key={p.url} className="pr-chip-item" title={badge?.title}>
@@ -57,6 +57,7 @@ export function InstanceCard(props: {
                   </span>
                 )
               })}
+              {inst.recent.prs.length > 2 && ` +${inst.recent.prs.length - 2}`}
             </span>
           )}
           {inst.now.queued.length > 0 && (

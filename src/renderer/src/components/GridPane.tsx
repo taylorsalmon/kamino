@@ -42,15 +42,18 @@ export function GridPane(props: {
           {inst &&
             inst.recent.prs.length > 0 &&
             (() => {
-              const latest = inst.recent.prs[inst.recent.prs.length - 1]
+              const prs = inst.recent.prs
+              const latest = prs[prs.length - 1]
               const badge = prBadge(props.prStatus?.[latest.url])
+              const all = prs.map((p) => `#${p.number}`).join(' ')
               return (
                 <button
                   className="pane-chip pr"
-                  title={badge ? `${badge.title} — click to open` : 'Open latest PR'}
+                  title={`${badge ? badge.title : all} — click to open latest`}
                   onClick={() => window.fleet.openExternal(latest.url)}
                 >
-                  PR {inst.recent.prs.map((p) => `#${p.number}`).join(' ')}
+                  PR #{latest.number}
+                  {prs.length > 1 && ` +${prs.length - 1}`}
                   {badge && (
                     <span className="pr-glyph" data-tone={badge.tone}>
                       {badge.glyph}
