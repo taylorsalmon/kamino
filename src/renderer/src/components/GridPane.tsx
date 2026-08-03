@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Instance, PrStatusMap } from '../../../shared/types'
 import { agoShort, elapsed, prBadge, STATE_WORD } from '../format'
 import { TerminalView } from './TerminalView'
@@ -19,6 +20,8 @@ export function GridPane(props: {
 }): React.JSX.Element {
   const { instance: inst, ptyId, now } = props
   const state = inst?.state ?? 'busy'
+  // per-pane flip between the live terminal and the intel/detail view
+  const [showIntel, setShowIntel] = useState(false)
 
   const rightTime = inst
     ? state === 'busy' && inst.now.turnStartedAt
@@ -66,6 +69,15 @@ export function GridPane(props: {
             <span className="pane-chip queue">⧗ {inst.now.queued.length}</span>
           )}
           <span className="pane-chip time">{rightTime}</span>
+          {ptyId && inst && (
+            <button
+              className="pane-chip focus-btn"
+              title={showIntel ? 'Back to the terminal' : 'Intel view — status, recap, PRs'}
+              onClick={() => setShowIntel((v) => !v)}
+            >
+              {showIntel ? '⌨' : '✦'}
+            </button>
+          )}
           <button className="pane-chip focus-btn" title="Open in focus view" onClick={props.onFocus}>
             ⤢
           </button>
@@ -103,7 +115,7 @@ export function GridPane(props: {
         </div>
       )}
       <div className="pane-body">
-        {ptyId ? (
+        {ptyId && !(showIntel && inst) ? (
           <TerminalView ptyId={ptyId} autoFocus={false} />
         ) : inst ? (
           <div className="pane-detail">

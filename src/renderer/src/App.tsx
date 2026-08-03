@@ -286,22 +286,12 @@ export default function App(): React.JSX.Element {
               <div className="jedi-quote">{jediQuote()}</div>
             </div>
           )}
-          {startingPtys.map((p) => (
-            <GridPane
-              key={p.ptyId}
-              instance={null}
-              ptyId={p.ptyId}
-              now={now}
-              adoptPending={false}
-              onAdopt={() => {}}
-              onFocus={() => {
-                setSelectedId(p.ptyId)
-                switchView('focus')
-              }}
-            />
-          ))}
           {snap.instances
             .filter((i) => i.state !== 'dead') // ended sessions live in Resume, not the wall
+            // grid slots must be STABLE while you type — the store sorts by
+            // state for the roster, but here we order by launch time, which
+            // never changes, so a pane keeps its slot for its whole life
+            .sort((a, b) => a.startedAt - b.startedAt || a.sessionId.localeCompare(b.sessionId))
             .map((inst) => (
               <GridPane
                 key={inst.sessionId}
@@ -318,6 +308,22 @@ export default function App(): React.JSX.Element {
                 }}
               />
             ))}
+          {/* freshly commissioned clones append at the end — when one binds
+              to a session its startedAt is newest, so it stays in that slot */}
+          {startingPtys.map((p) => (
+            <GridPane
+              key={p.ptyId}
+              instance={null}
+              ptyId={p.ptyId}
+              now={now}
+              adoptPending={false}
+              onAdopt={() => {}}
+              onFocus={() => {
+                setSelectedId(p.ptyId)
+                switchView('focus')
+              }}
+            />
+          ))}
         </div>
       ) : (
       <div className="main">
