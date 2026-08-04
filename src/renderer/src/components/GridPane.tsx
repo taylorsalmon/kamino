@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Instance, PrStatusMap } from '../../../shared/types'
 import { agoShort, elapsed, prBadge, stateWord } from '../format'
 import { TerminalView } from './TerminalView'
@@ -17,9 +17,12 @@ export function GridPane(props: {
   now: number
   /** position on the wall — slots 0-8 get a Ctrl+n jump badge */
   slot?: number
-  /** span in grid tracks (1 or 2 per axis) — fixed steps, never pixels */
-  size?: { w: 1 | 2; h: 1 | 2 }
-  onToggleSize?: (axis: 'w' | 'h') => void
+  /** span in grid tracks — whole tracks, never pixels */
+  size?: { w: number; h: number }
+  /** live while dragging an edge handle — each snap to a new track fires once */
+  onSizeChange?: (size: { w: number; h: number }) => void
+  /** how far this pane may grow: columns on the wall, rows in the viewport */
+  maxSpan?: { w: number; h: number }
   /** another pane's grip was dropped here — it takes this slot */
   onDropPane?: (srcPaneId: string) => void
   adoptPending: boolean
@@ -32,7 +35,54 @@ export function GridPane(props: {
   // per-pane flip between the live terminal and the intel/detail view
   const [showIntel, setShowIntel] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [resizing, setResizing] = useState(false)
+  const paneRef = useRef<HTMLDivElement>(null)
   const size = props.size ?? { w: 1, h: 1 }
+
+  // must match .grid-view gap in styles.css — track math depends on it
+  const GRID_GAP = 6
+
+  /** edge-handle drag: snap the span to whole grid tracks as the cursor
+   *  crosses track midpoints. Discrete snaps, so the terminal refits a
+   *  couple of times per drag instead of every pixel (ConPTY redraw). */
+  function startResize(e: React.PointerEvent, axes: { x?: boolean; y?: boolean }): void {
+    const el = paneRef.current
+    if (!el || !props.onSizeChange) return
+    e.preventDefault()
+    e.stopPropagation()
+    const rect = el.getBoundingClientRect()
+    const start = props.size ?? { w: 1, h: 1 }
+    const colW = (rect.width - GRID_GAP * (start.w - 1)) / start.w
+    const rowH = (rect.height - GRID_GAP * (start.h - 1)) / start.h
+    const max = props.maxSpan ?? { w: 2, h: 2 }
+    let cur = { ...start }
+    setResizing(true)
+    document.body.classList.add('pane-resizing')
+    document.body.style.cursor = axes.x && axes.y ? 'nwse-resize' : axes.x ? 'ew-resize' : 'ns-resize'
+    const onMove = (ev: PointerEvent): void => {
+      const w = axes.x
+        ? Math.min(max.w, Math.max(1, Math.round((ev.clientX - rect.left + GRID_GAP) / (colW + GRID_GAP))))
+        : cur.w
+      const h = axes.y
+        ? Math.min(max.h, Math.max(1, Math.round((ev.clientY - rect.top + GRID_GAP) / (rowH + GRID_GAP))))
+        : cur.h
+      if (w !== cur.w || h !== cur.h) {
+        cur = { w, h }
+        props.onSizeChange?.(cur)
+      }
+    }
+    const onUp = (): void => {
+      setResizing(false)
+      document.body.classList.remove('pane-resizing')
+      document.body.style.cursor = ''
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }
   // needs-you banner dismissal — comes back if a NEW ask appears
   const [askDismissed, setAskDismissed] = useState(false)
   const pendingAsk = state === 'needs-you' ? inst?.now.pendingAsk : undefined
@@ -46,11 +96,12 @@ export function GridPane(props: {
 
   return (
     <div
-      className={`pane${dragOver ? ' drag-over' : ''}`}
+      ref={paneRef}
+      className={`pane${dragOver ? ' drag-over' : ''}${resizing ? ' resizing' : ''}`}
       data-state={state}
       style={{
-        gridColumn: size.w === 2 ? 'span 2' : undefined,
-        gridRow: size.h === 2 ? 'span 2' : undefined
+        gridColumn: size.w > 1 ? `span ${size.w}` : undefined,
+        gridRow: size.h > 1 ? `span ${size.h}` : undefined
       }}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes('application/x-kamino-pane')) {
@@ -128,20 +179,6 @@ export function GridPane(props: {
               {showIntel ? '⌨' : '✦'}
             </button>
           )}
-          <button
-            className={`pane-chip size-btn${size.w === 2 ? ' on' : ''}`}
-            title={size.w === 2 ? 'Back to single width' : 'Widen — span two columns'}
-            onClick={() => props.onToggleSize?.('w')}
-          >
-            ⬌
-          </button>
-          <button
-            className={`pane-chip size-btn${size.h === 2 ? ' on' : ''}`}
-            title={size.h === 2 ? 'Back to single height' : 'Stretch — span two rows'}
-            onClick={() => props.onToggleSize?.('h')}
-          >
-            ⬍
-          </button>
           <button className="pane-chip focus-btn" title="Open in focus view" onClick={props.onFocus}>
             ⤢
           </button>
@@ -252,6 +289,33 @@ export function GridPane(props: {
           </div>
         ) : null}
       </div>
+      {props.onSizeChange && (
+        <>
+          {resizing && (
+            <div className="pane-size-hud">
+              {size.w}×{size.h}
+            </div>
+          )}
+          <div
+            className="pane-handle e"
+            title="Drag to set width · double-click resets to 1×1"
+            onPointerDown={(e) => startResize(e, { x: true })}
+            onDoubleClick={() => props.onSizeChange?.({ w: 1, h: 1 })}
+          />
+          <div
+            className="pane-handle s"
+            title="Drag to set height · double-click resets to 1×1"
+            onPointerDown={(e) => startResize(e, { y: true })}
+            onDoubleClick={() => props.onSizeChange?.({ w: 1, h: 1 })}
+          />
+          <div
+            className="pane-handle se"
+            title="Drag to resize · double-click resets to 1×1"
+            onPointerDown={(e) => startResize(e, { x: true, y: true })}
+            onDoubleClick={() => props.onSizeChange?.({ w: 1, h: 1 })}
+          />
+        </>
+      )}
     </div>
   )
 }

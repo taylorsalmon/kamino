@@ -875,12 +875,15 @@ body {
   flex: 1;
   min-height: 0;
   display: grid;
-  /* density control sets both vars: column width drives how many clones sit
-     side by side; the row floor makes the wall scroll rather than crush
-     panes into unusable slivers */
+  /* fallback tracks only — App.tsx measures the wall and sets explicit
+     columns and a FIXED pixel row height inline. Fixed rows are the point:
+     a pane spanning 2 rows takes real space (the wall scrolls) instead of
+     shrinking every other row's 1fr share. */
   grid-template-columns: repeat(auto-fit, minmax(var(--pane-min, 430px), 1fr));
   grid-auto-rows: minmax(var(--pane-row-min, 240px), 1fr);
-  gap: 6px;
+  /* backfill the hole a spanning pane leaves, so no empty cells */
+  grid-auto-flow: dense;
+  gap: 6px; /* GRID_GAP in App.tsx/GridPane.tsx — keep in sync */
   padding: 6px;
   background: var(--bg0);
   overflow-y: auto;
@@ -902,6 +905,7 @@ body {
 }
 
 .pane {
+  position: relative; /* anchors the edge resize handles */
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -943,9 +947,73 @@ body {
   border-color: var(--violet);
   box-shadow: 0 0 0 1px var(--violet);
 }
-.pane-chip.size-btn.on {
-  color: var(--clay);
-  border-color: var(--clay-dim);
+
+/* ── edge resize handles: drag to snap the pane to whole grid tracks ──── */
+.pane-handle {
+  position: absolute;
+  z-index: 5;
+}
+.pane-handle.e {
+  top: 0;
+  right: 0;
+  width: 7px;
+  height: 100%;
+  cursor: ew-resize;
+}
+.pane-handle.s {
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 7px;
+  cursor: ns-resize;
+}
+.pane-handle.se {
+  /* rendered last so the corner wins over both edges */
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+}
+.pane-handle.e:hover,
+.pane.resizing .pane-handle.e {
+  box-shadow: inset -3px 0 0 var(--clay);
+}
+.pane-handle.s:hover,
+.pane.resizing .pane-handle.s {
+  box-shadow: inset 0 -3px 0 var(--clay);
+}
+.pane-handle.se:hover {
+  box-shadow: inset -3px -3px 0 var(--clay);
+}
+.pane.resizing {
+  border-color: var(--clay);
+  box-shadow: 0 0 0 1px var(--clay);
+}
+/* current span, centered while dragging */
+.pane-size-hud {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  pointer-events: none;
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--bg1);
+  border: 1px solid var(--clay);
+  border-radius: 8px;
+  padding: 6px 14px;
+}
+/* while any pane resizes: no text selection, and terminals must not eat
+   the pointer stream */
+body.pane-resizing {
+  user-select: none;
+}
+body.pane-resizing .terminal-view {
+  pointer-events: none;
 }
 
 .pane-slot {

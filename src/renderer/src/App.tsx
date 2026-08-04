@@ -30,11 +30,15 @@ interface PtyRef {
   cwd: string
 }
 
-/** pane size in grid tracks — fixed steps, never per-pixel */
+/** pane size in grid tracks — snaps to whole tracks, never per-pixel */
 export interface PaneSize {
-  w: 1 | 2
-  h: 1 | 2
+  w: number
+  h: number
 }
+
+/** wall geometry — must match .grid-view gap/padding in styles.css */
+const GRID_GAP = 6
+const GRID_PAD = 6
 
 function loadJson<T>(key: string, fallback: T): T {
   try {
@@ -83,10 +87,11 @@ export default function App(): React.JSX.Element {
     localStorage.setItem('fleet:pane-sizes', JSON.stringify(paneSizes))
   }, [paneSizes])
 
-  const togglePaneSize = useCallback((id: string, axis: keyof PaneSize) => {
+  const setPaneSize = useCallback((id: string, size: PaneSize) => {
     setPaneSizes((m) => {
-      const cur = m[id] ?? { w: 1, h: 1 }
-      return { ...m, [id]: { ...cur, [axis]: cur[axis] === 2 ? 1 : 2 } }
+      const cur = m[id]
+      if (cur?.w === size.w && cur?.h === size.h) return m
+      return { ...m, [id]: size }
     })
   }, [])
 
@@ -213,6 +218,73 @@ export default function App(): React.JSX.Element {
       setPaneOrder(ids)
     },
     [gridInstances, startingPtys]
+  )
+
+  // a starting pane is keyed by ptyId; once it binds to a session, carry its
+  // size and slot over — otherwise a resize/reorder silently vanishes
+  useEffect(() => {
+    for (const inst of snap.instances) {
+      const ptyId = ptyByPid.get(inst.pid)?.ptyId
+      if (!ptyId) continue
+      if (paneSizes[ptyId] && !paneSizes[inst.sessionId]) {
+        setPaneSizes((m) => {
+          const next = { ...m, [inst.sessionId]: m[ptyId] }
+          delete next[ptyId]
+          return next
+        })
+      }
+      if (paneOrder.includes(ptyId) && !paneOrder.includes(inst.sessionId)) {
+        setPaneOrder((o) => o.map((x) => (x === ptyId ? inst.sessionId : x)))
+      }
+    }
+  }, [snap, ptyByPid, paneSizes, paneOrder])
+
+  // wall measurements — drives explicit column/row math below
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [gridBox, setGridBox] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    if (view !== 'grid') return
+    const el = gridRef.current
+    if (!el) return
+    const measure = (): void => setGridBox({ w: el.clientWidth, h: el.clientHeight })
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [view])
+
+  /** explicit grid math. auto-fit + spans lets the browser reflow panes into
+   *  different slots (looks like the wrong pane resized), and 1fr rows shrink
+   *  every OTHER pane when one grows taller. So: we pick the column count,
+   *  and rows are a FIXED pixel height — a taller pane takes real space and
+   *  the wall scrolls; its neighbours keep their size. */
+  const layout = useMemo(() => {
+    const { min, rowMin } = DENSITY[density]
+    const w = Math.max(0, gridBox.w - GRID_PAD * 2)
+    const h = Math.max(0, gridBox.h - GRID_PAD * 2)
+    const cols = Math.max(1, Math.floor((w + GRID_GAP) / (min + GRID_GAP)))
+    const rowsFit = Math.max(1, Math.floor((h + GRID_GAP) / (rowMin + GRID_GAP)))
+    // stretch rows to fill when everything fits; fixed floor (scroll) when not
+    const ids = [...gridInstances.map((i) => i.sessionId), ...startingPtys.map((p) => p.ptyId)]
+    const cells = ids.reduce((n, id) => {
+      const s = paneSizes[id]
+      return n + Math.min(s?.w ?? 1, cols) * Math.min(s?.h ?? 1, rowsFit)
+    }, 0)
+    const rows = Math.max(1, Math.min(Math.ceil(cells / cols), rowsFit))
+    const rowH = h > 0 ? Math.floor((h - (rows - 1) * GRID_GAP) / rows) : rowMin
+    return { cols, rowsFit, rowH }
+  }, [density, gridBox, gridInstances, startingPtys, paneSizes])
+
+  /** stored span, clamped to what the current wall can actually hold */
+  const paneSize = useCallback(
+    (id: string): PaneSize => {
+      const s = paneSizes[id] ?? { w: 1, h: 1 }
+      return {
+        w: Math.max(1, Math.min(s.w, layout.cols)),
+        h: Math.max(1, Math.min(s.h, layout.rowsFit))
+      }
+    },
+    [paneSizes, layout]
   )
 
   // Ctrl+1..9 / Ctrl+` targets, kept in refs so the mount-once key listener
@@ -489,12 +561,20 @@ export default function App(): React.JSX.Element {
 
       {view === 'grid' ? (
         <div
+          ref={gridRef}
           className="grid-view"
           data-density={density}
           style={
             {
               '--pane-min': `${DENSITY[density].min}px`,
-              '--pane-row-min': `${DENSITY[density].rowMin}px`
+              '--pane-row-min': `${DENSITY[density].rowMin}px`,
+              // explicit tracks once measured — see layout memo for why
+              ...(gridBox.w > 0
+                ? {
+                    gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))`,
+                    gridAutoRows: `${layout.rowH}px`
+                  }
+                : {})
             } as React.CSSProperties
           }
         >
@@ -517,8 +597,9 @@ export default function App(): React.JSX.Element {
                 ptyId={ptyByPid.get(inst.pid)?.ptyId ?? null}
                 now={now}
                 slot={ix}
-                size={paneSizes[inst.sessionId] ?? { w: 1, h: 1 }}
-                onToggleSize={(axis) => togglePaneSize(inst.sessionId, axis)}
+                size={paneSize(inst.sessionId)}
+                onSizeChange={(s) => setPaneSize(inst.sessionId, s)}
+                maxSpan={{ w: layout.cols, h: layout.rowsFit }}
                 onDropPane={(srcId) => movePane(srcId, inst.sessionId)}
                 adoptPending={inst.sessionId in pendingAdopt}
                 prStatus={prStatus}
@@ -540,8 +621,9 @@ export default function App(): React.JSX.Element {
               ptyId={p.ptyId}
               now={now}
               slot={gridInstances.length + ix}
-              size={paneSizes[p.ptyId] ?? { w: 1, h: 1 }}
-              onToggleSize={(axis) => togglePaneSize(p.ptyId, axis)}
+              size={paneSize(p.ptyId)}
+              onSizeChange={(s) => setPaneSize(p.ptyId, s)}
+              maxSpan={{ w: layout.cols, h: layout.rowsFit }}
               onDropPane={(srcId) => movePane(srcId, p.ptyId)}
               adoptPending={false}
               onAdopt={() => {}}
