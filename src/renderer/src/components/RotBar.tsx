@@ -36,6 +36,8 @@ export function RotBar(props: {
   context?: ContextHealth
   /** wall-clock ms — for the "compacted 3m ago" line in the tip */
   now: number
+  /** when given, Clawd is clickable and opens the reincarnation dialog */
+  sessionId?: string
 }): React.JSX.Element | null {
   const rootRef = useRef<HTMLSpanElement>(null)
   const [tipPos, setTipPos] = useState<React.CSSProperties | null>(null)
@@ -67,13 +69,35 @@ export function RotBar(props: {
     )
   }
 
+  const sessionId = props.sessionId
+  const open = sessionId
+    ? (e: React.MouseEvent | React.KeyboardEvent): void => {
+        // RotBar lives inside clickable cards — a click here means Clawd, not the card
+        e.stopPropagation()
+        e.preventDefault()
+        window.dispatchEvent(new CustomEvent('kamino:handoff', { detail: sessionId }))
+      }
+    : undefined
+
   return (
     <span
       ref={rootRef}
       className="rot"
       data-stage={stage}
+      data-clickable={open ? 'yes' : undefined}
       onMouseEnter={showTip}
       onMouseLeave={() => setTipPos(null)}
+      onClick={open}
+      onKeyDown={
+        open
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') open(e)
+            }
+          : undefined
+      }
+      role={open ? 'button' : undefined}
+      tabIndex={open ? 0 : undefined}
+      aria-label={open ? `Context ${pctWord} full — transfer or compact` : undefined}
     >
       <span className="clawd">
         <pre className="clawd-body">
@@ -124,6 +148,12 @@ export function RotBar(props: {
               ☠ Compacted {ctx.compactions > 1 ? `${ctx.compactions}× ` : ''}this session
               {ctx.lastCompactAt ? ` (last ${agoShort(ctx.lastCompactAt, props.now)} ago)` : ''} —
               memory from before then is summary-only.
+            </span>
+          )}
+          {open && (
+            <span className="rot-tip-cta">
+              Click Clawd → transfer this clone&apos;s working state to a fresh one, or compact in
+              place.
             </span>
           )}
         </span>

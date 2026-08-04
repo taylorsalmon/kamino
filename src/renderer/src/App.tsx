@@ -7,6 +7,7 @@ import { LaunchDialog } from './components/LaunchDialog'
 import { WrapupDialog } from './components/WrapupDialog'
 import { GridPane } from './components/GridPane'
 import { CheatSheet } from './components/CheatSheet'
+import { HandoffDialog } from './components/HandoffDialog'
 import { focusTerminal, setTermFontSize } from './terminals'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
@@ -137,6 +138,16 @@ export default function App(): React.JSX.Element {
   }, [snap, pendingAdopt])
 
   const [hooksOk, setHooksOk] = useState(true)
+
+  // clicking Clawd (the rot meter) anywhere opens the reincarnation dialog —
+  // RotBar sits inside clickable cards, so it asks via a window event rather
+  // than a callback threaded through three components
+  const [handoffFor, setHandoffFor] = useState<string | null>(null)
+  useEffect(() => {
+    const onHandoff = (e: Event): void => setHandoffFor((e as CustomEvent<string>).detail)
+    window.addEventListener('kamino:handoff', onHandoff)
+    return () => window.removeEventListener('kamino:handoff', onHandoff)
+  }, [])
 
   // F2 flips Terminal ⇄ Intel from anywhere — the terminal forwards it via
   // a window event since xterm otherwise owns the keyboard
@@ -385,6 +396,19 @@ export default function App(): React.JSX.Element {
       window.removeEventListener('keydown', onKey)
     }
   }, [])
+
+  // the handoff target stays rendered from the last known snapshot even after
+  // its clone is decommissioned — otherwise a transfer that kills the old clone
+  // tears its own "transfer complete" dialog off the screen
+  const handoffLive = useMemo(
+    () => (handoffFor ? snap.instances.find((i) => i.sessionId === handoffFor) ?? null : null),
+    [snap, handoffFor]
+  )
+  const lastHandoffInst = useRef<Instance | null>(null)
+  useEffect(() => {
+    if (handoffLive) lastHandoffInst.current = handoffLive
+  }, [handoffLive])
+  const handoffInstance = handoffLive ?? (handoffFor ? lastHandoffInst.current : null)
 
   const selectedInstance = useMemo(
     () => snap.instances.find((i) => i.sessionId === selectedId) ?? null,
@@ -879,6 +903,14 @@ export default function App(): React.JSX.Element {
       )}
       </div>
 
+      {handoffInstance && (
+        <HandoffDialog
+          instance={handoffInstance}
+          ptyId={ptyByPid.get(handoffInstance.pid)?.ptyId ?? null}
+          onClose={() => setHandoffFor(null)}
+          onSuccessor={onLaunched}
+        />
+      )}
       {showCheats && <CheatSheet onClose={() => setShowCheats(false)} />}
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
       {showWrapup && (

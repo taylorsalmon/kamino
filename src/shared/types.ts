@@ -108,6 +108,26 @@ export interface Instance {
   permissionMode?: string
 }
 
+/**
+ * Reincarnation progress. Stages run in order: briefing (the old clone is
+ * writing its handoff brief) → brief (it's written) → commissioning (successor
+ * spawning) → seeding (brief going into the successor's composer) → done.
+ */
+export type HandoffStage = 'briefing' | 'brief' | 'commissioning' | 'seeding' | 'done' | 'error'
+
+export interface HandoffProgress {
+  /** the OLD clone's session — the one being handed off */
+  sessionId: string
+  stage: HandoffStage
+  /** the brief, streaming while it's being written */
+  brief?: string
+  /** brief was cut short (timeout) and is going over incomplete */
+  partial?: boolean
+  successor?: { ptyId: string; pid: number }
+  killedOld?: boolean
+  error?: string
+}
+
 /** One message in the hover-peek transcript tail. */
 export interface TranscriptTailMsg {
   who: 'you' | 'clone'
@@ -140,6 +160,9 @@ export interface LaunchRequest {
   resumeSessionId?: string
   initialPrompt?: string
   permissionMode?: string
+  /** standing orders to commit, push and raise a PR when work is done.
+   *  Omitted = on; only an explicit false turns it off. */
+  autoShip?: boolean
 }
 
 export interface PtyInfo {

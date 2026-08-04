@@ -185,7 +185,7 @@ export function DetailPanel(props: {
           <dd>
             {inst.context ? (
               <span className="detail-rot">
-                <RotBar context={inst.context} now={now} />
+                <RotBar context={inst.context} now={now} sessionId={inst.sessionId} />
                 <span>
                   {fmtTokens(inst.context.tokens)} / {fmtTokens(inst.context.window)}
                   {inst.context.compactions > 0 && ` · ${inst.context.compactions} compaction${inst.context.compactions > 1 ? 's' : ''}`}

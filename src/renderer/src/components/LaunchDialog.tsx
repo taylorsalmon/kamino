@@ -14,9 +14,18 @@ export function LaunchDialog(props: {
   const [cwd, setCwd] = useState('')
   const [prompt, setPrompt] = useState('')
   const [permissionMode, setPermissionMode] = useState('default')
+  // standing orders live in the clone's system prompt, so the choice is made
+  // once at commission time and can't be forgotten later in the session
+  const [autoShip, setAutoShip] = useState(
+    () => localStorage.getItem('fleet:auto-ship') !== 'off'
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const now = Date.now()
+
+  useEffect(() => {
+    localStorage.setItem('fleet:auto-ship', autoShip ? 'on' : 'off')
+  }, [autoShip])
 
   useEffect(() => {
     window.fleet.recentProjects().then((p) => {
@@ -34,7 +43,8 @@ export function LaunchDialog(props: {
       const info = await window.fleet.spawn({
         cwd,
         initialPrompt: prompt.trim() || undefined,
-        permissionMode: permissionMode === 'default' ? undefined : permissionMode
+        permissionMode: permissionMode === 'default' ? undefined : permissionMode,
+        autoShip
       })
       props.onLaunched(info.ptyId, info.pid)
     } catch (e) {
@@ -49,7 +59,11 @@ export function LaunchDialog(props: {
     setBusy(true)
     setError('')
     try {
-      const info = await window.fleet.spawn({ cwd: s.cwd, resumeSessionId: s.sessionId })
+      const info = await window.fleet.spawn({
+        cwd: s.cwd,
+        resumeSessionId: s.sessionId,
+        autoShip
+      })
       props.onLaunched(info.ptyId, info.pid)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -118,6 +132,21 @@ export function LaunchDialog(props: {
                 <option value="bypassPermissions">auto — never asks, full autonomy</option>
               </select>
             </div>
+            <label className="field auto-ship" title="Appended to the clone's system prompt, so it holds for the whole session">
+              <span className="auto-ship-top">
+                <input
+                  type="checkbox"
+                  checked={autoShip}
+                  onChange={(e) => setAutoShip(e.target.checked)}
+                />
+                <span className="section-label">Standing orders: ship its own work</span>
+              </span>
+              <span className="auto-ship-note">
+                Finishing includes shipping — commit, push, and open (or update) a PR without being
+                asked, with anything unfinished logged as follow-ups. Skipped on main/master and in
+                repos with no remote.
+              </span>
+            </label>
             <div className="modal-actions">
               {error ? (
                 <span className="recap-err">{error}</span>

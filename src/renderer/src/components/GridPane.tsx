@@ -232,7 +232,9 @@ export function GridPane(props: {
               {inst.kind === 'external' ? 'field-deployed' : 'covert ops'}
             </span>
           )}
-          {inst.state !== 'dead' && <RotBar context={inst.context} now={now} />}
+          {inst.state !== 'dead' && (
+            <RotBar context={inst.context} now={now} sessionId={inst.sessionId} />
+          )}
         </div>
       )}
       {/* always rendered while a session exists — constant height keeps the

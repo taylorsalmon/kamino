@@ -12,12 +12,14 @@ import { recap } from './recap'
 import { PrStatusPoller } from './pr-status'
 import { transcriptTail } from './transcript-peek'
 import { checkRepo } from './wrapup'
-import type { FleetSnapshot, LaunchRequest } from '../shared/types'
+import { HandoffRunner } from './handoff'
+import type { FleetSnapshot, HandoffProgress, LaunchRequest } from '../shared/types'
 
 const store = new InstanceStore(path.join(app.getPath('userData'), 'model-windows.json'))
 const ptys = new PtyManager()
 const hookServer = new HookServer()
 const prPoller = new PrStatusPoller()
+const handoff = new HandoffRunner(ptys, store)
 let win: BrowserWindow | null = null
 
 const LONG_TURN_MS = 30_000
@@ -175,7 +177,8 @@ app.whenReady().then(() => {
       cwd: req.cwd,
       resumeSessionId: req.resumeSessionId,
       initialPrompt: req.initialPrompt,
-      permissionMode: req.permissionMode
+      permissionMode: req.permissionMode,
+      autoShip: req.autoShip
     })
   })
   ipcMain.on('pty:input', (_e, ptyId: string, data: string) => ptys.write(ptyId, data))
@@ -217,6 +220,14 @@ app.whenReady().then(() => {
     if (!inst) throw new Error('unknown session')
     return recap(sessionId, inst.cwd)
   })
+
+  // ── reincarnation: hand a rotting clone's state to a fresh one ────────
+  handoff.on('progress', (p: HandoffProgress) => broadcast('handoff:progress', p))
+  ipcMain.handle('handoff:start', (_e, sessionId: string, killOld: boolean) => {
+    void handoff.run(sessionId, { killOld: killOld !== false })
+  })
+  ipcMain.handle('handoff:cancel', (_e, sessionId: string) => handoff.cancel(sessionId))
+  ipcMain.handle('handoff:compact', (_e, sessionId: string) => handoff.compact(sessionId))
 
   // ── hover peek: last few transcript exchanges ────────────────────────
   ipcMain.handle('transcript:tail', (_e, sessionId: string) => {

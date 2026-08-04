@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { FleetSnapshot, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
+import type { FleetSnapshot, HandoffProgress, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 const api = {
   // fleet status
@@ -55,6 +55,20 @@ const api = {
   // hover peek: last few transcript exchanges
   transcriptTail: (sessionId: string): Promise<TranscriptTailMsg[]> =>
     ipcRenderer.invoke('transcript:tail', sessionId),
+
+  // reincarnation: brief → successor → seed
+  handoffStart: (sessionId: string, killOld: boolean): Promise<void> =>
+    ipcRenderer.invoke('handoff:start', sessionId, killOld),
+  handoffCancel: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke('handoff:cancel', sessionId),
+  /** squash the clone's own history in place (/compact) */
+  handoffCompact: (sessionId: string): Promise<boolean> =>
+    ipcRenderer.invoke('handoff:compact', sessionId),
+  onHandoff: (cb: (p: HandoffProgress) => void): (() => void) => {
+    const listener = (_e: unknown, p: HandoffProgress): void => cb(p)
+    ipcRenderer.on('handoff:progress', listener)
+    return () => ipcRenderer.removeListener('handoff:progress', listener)
+  },
 
   // hooks + focus routing
   hooksStatus: (): Promise<boolean> => ipcRenderer.invoke('hooks:status'),

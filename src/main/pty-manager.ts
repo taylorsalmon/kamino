@@ -14,9 +14,29 @@ export interface SpawnOptions {
   resumeSessionId?: string
   initialPrompt?: string
   permissionMode?: string
+  /** standing orders: ship finished work without being asked. Defaults on —
+   *  pass false to commission a clone that leaves shipping to you. */
+  autoShip?: boolean
   cols?: number
   rows?: number
 }
+
+/**
+ * Standing orders, appended to the clone's system prompt (--append-system-prompt)
+ * rather than typed as a first prompt: a system prompt can't rot out of the
+ * context window as the session grows, and it costs no turn.
+ *
+ * Kept free of double quotes and % so it survives being quoted onto a Windows
+ * command line.
+ */
+export const AUTO_SHIP_ORDERS =
+  'Shipping is part of finishing. When you complete a piece of work, do not stop at the last edit and ' +
+  'do not ask whether to ship it: commit the change with a clear message, push the branch, and open a ' +
+  'pull request (or update the one already open) describing what changed and what is left. If the work ' +
+  'is incomplete or known-broken, still commit and push it, and record the gaps in a Follow-ups section ' +
+  'of the PR description. Never leave finished work uncommitted or unpushed. The exceptions, where you ' +
+  'should not push or open a PR: you are on the repo default branch (main or master), the repo has no ' +
+  'git remote, or the user has told you not to.'
 
 export interface PtyInfo {
   ptyId: string
@@ -52,6 +72,8 @@ export class PtyManager extends EventEmitter {
     if (opts.permissionMode && opts.permissionMode !== 'default') {
       args.push('--permission-mode', opts.permissionMode)
     }
+    if (opts.autoShip !== false) args.push('--append-system-prompt', AUTO_SHIP_ORDERS)
+    // the prompt goes last: everything after it would be read as more prompt
     if (opts.initialPrompt) args.push(opts.initialPrompt)
 
     // The clone must start from a pristine environment. Kamino itself may
