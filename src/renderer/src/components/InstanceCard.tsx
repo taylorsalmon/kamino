@@ -1,5 +1,6 @@
 import type { Instance, PrStatusMap } from '../../../shared/types'
 import { agoShort, elapsed, KIND_WORD, prBadge, stateWord } from '../format'
+import { RotBar } from './RotBar'
 
 export function InstanceCard(props: {
   instance: Instance
@@ -63,6 +64,7 @@ export function InstanceCard(props: {
           {inst.now.queued.length > 0 && (
             <span className="queue-chip">⧗ {inst.now.queued.length} queued</span>
           )}
+          {inst.state !== 'dead' && <RotBar context={inst.context} now={now} />}
         </span>
       </span>
     </button>

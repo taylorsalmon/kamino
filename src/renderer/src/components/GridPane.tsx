@@ -3,6 +3,7 @@ import type { Instance, PrStatusMap, TranscriptTailMsg } from '../../../shared/t
 import { agoShort, elapsed, prBadge, stateWord } from '../format'
 import { TerminalView } from './TerminalView'
 import { DetailPanel } from './DetailPanel'
+import { RotBar } from './RotBar'
 
 /**
  * One cell of the grid view: a live status strip on top and, below it, the
@@ -231,6 +232,7 @@ export function GridPane(props: {
               {inst.kind === 'external' ? 'field-deployed' : 'covert ops'}
             </span>
           )}
+          {inst.state !== 'dead' && <RotBar context={inst.context} now={now} />}
         </div>
       )}
       {/* always rendered while a session exists — constant height keeps the

@@ -19,6 +19,13 @@
   --sage: #5fb88a;
   --violet: #a78bfa;
   --ghost: #4a5561;
+  /* Clawd's decay ramp — clay orange staling to moss, then the grave */
+  --clawd-fresh: #d97757;
+  --clawd-60: #c08a52;
+  --clawd-80: #97854c;
+  --clawd-90: #6f7350;
+  --clawd-dead: #59615a;
+  --moss-ink: #b9cf7a; /* legible text ink for the late/dying/dead stages */
   --mono: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
   --sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
 }
@@ -43,6 +50,12 @@
   --sage: #1e8a52;
   --violet: #7048d6;
   --ghost: #a89e8c;
+  --clawd-fresh: #c14a20;
+  --clawd-60: #a06b2e;
+  --clawd-80: #7d7430;
+  --clawd-90: #5f6440;
+  --clawd-dead: #6a7268;
+  --moss-ink: #55611f;
 }
 
 * {
@@ -910,6 +923,14 @@ body {
   padding: 6px;
   background: var(--bg0);
   overflow-y: auto;
+  position: relative; /* anchors the empty-state overlay */
+}
+/* empty state: overlay the whole wall instead of sitting in grid cell 1 */
+.grid-view > .detail-empty {
+  position: absolute;
+  inset: 0;
+  text-align: center;
+  padding: 0 24px;
 }
 
 /* Max density: strip chrome so vertical space goes to terminals */
@@ -1720,4 +1741,271 @@ body.pane-resizing .terminal-view {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── Context rot ──────────────────────────────────────────────────────────
+   Decay meter: the fill IS the rot. Translucent stripes crawl toward the
+   frontier (faster as it worsens), the leading edge glows like live mold,
+   and at critical the whole track throbs. */
+
+.rot {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 5px;
+  margin-left: auto; /* hug the right edge of meta rows */
+  flex-shrink: 0;
+  cursor: default;
+}
+/* Clawd — the block-glyph mascot IS the meter. Fresh he bobs in clay
+   orange; as context fills he stales, slumps, draws flies, and at ~100%
+   he's belly-up with his soul drifting off. His pixels (block glyphs)
+   die one by one — the px-dead order lives in RotBar.tsx. All motion is
+   slow and ambient: nothing blinks, nothing throbs. */
+.clawd {
+  position: relative;
+  display: inline-block;
+  font-size: 6px; /* the whole crab scales off this — ~17px tall */
+}
+.detail-rot .clawd {
+  font-size: 9px;
+}
+.clawd-body {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: inherit;
+  font-weight: 700;
+  line-height: 0.95;
+  color: var(--clawd-fresh);
+  transition: color 1.2s;
+  transform-origin: 50% 60%;
+}
+.clawd-body span {
+  transition: opacity 1.4s;
+}
+.clawd-body .px-dead {
+  opacity: 0.28;
+}
+.rot[data-stage='fresh'] .clawd-body {
+  animation: cl-bob 3.8s ease-in-out infinite;
+}
+.rot[data-stage='rotting'] .clawd-body {
+  color: var(--clawd-60);
+  animation: cl-bob-tired 6.5s ease-in-out infinite;
+}
+.rot[data-stage='late'] .clawd-body {
+  color: var(--clawd-80);
+  animation: cl-breathe 5.5s ease-in-out infinite;
+}
+.rot[data-stage='dying'] .clawd-body {
+  color: var(--clawd-90);
+  animation: cl-gasp 7.5s ease-in-out infinite;
+}
+.rot[data-stage='dead'] .clawd-body {
+  color: var(--clawd-dead);
+  transform: rotate(180deg) translateY(-8%); /* belly-up */
+}
+@keyframes cl-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7%);
+  }
+}
+@keyframes cl-bob-tired {
+  0%,
+  100% {
+    transform: translateY(0) rotate(3deg);
+  }
+  50% {
+    transform: translateY(-3%) rotate(3deg);
+  }
+}
+@keyframes cl-breathe {
+  0%,
+  100% {
+    transform: rotate(11deg) translateY(6%) scale(1);
+  }
+  50% {
+    transform: rotate(11deg) translateY(6%) scale(1.03, 0.97);
+  }
+}
+@keyframes cl-gasp {
+  0%,
+  100% {
+    transform: rotate(24deg) translateY(12%) scale(1);
+  }
+  46%,
+  54% {
+    transform: rotate(24deg) translateY(12%) scale(1.04, 0.96);
+  }
+}
+/* the flies arrive at 68% */
+.cl-fly {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  width: 0.25em;
+  height: 0.25em;
+  border-radius: 50%;
+  background: var(--ghost);
+  opacity: 0;
+  transition: opacity 1s;
+  pointer-events: none;
+}
+.rot[data-stage='late'] .cl-fly,
+.rot[data-stage='dying'] .cl-fly,
+.rot[data-stage='dead'] .cl-fly {
+  opacity: 1;
+}
+.cl-fly-1 {
+  animation: cl-fly-orbit 6s linear infinite;
+}
+.cl-fly-2 {
+  width: 0.18em;
+  height: 0.18em;
+  animation: cl-fly-orbit 8.5s linear 2s infinite reverse;
+}
+@keyframes cl-fly-orbit {
+  from {
+    transform: rotate(0deg) translateX(1.3em);
+  }
+  to {
+    transform: rotate(360deg) translateX(1.3em);
+  }
+}
+/* the soul — a pale mini-Clawd rises out of the body every 9s once dead */
+.cl-soul {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.5em;
+  line-height: 0.95;
+  color: var(--text);
+  opacity: 0;
+  pointer-events: none;
+}
+.rot[data-stage='dead'] .cl-soul {
+  animation: cl-soul-rise 9s ease-out infinite;
+}
+@keyframes cl-soul-rise {
+  0%,
+  60% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+  65% {
+    opacity: 0.7;
+  }
+  88%,
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -2.6em);
+  }
+}
+.rot-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+.rot[data-stage='rotting'] .rot-label {
+  color: var(--amber);
+}
+.rot[data-stage='late'] .rot-label,
+.rot[data-stage='dying'] .rot-label,
+.rot[data-stage='dead'] .rot-label {
+  color: var(--moss-ink);
+}
+.rot-scar {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ghost);
+  flex-shrink: 0;
+}
+
+/* hover explainer — position:fixed (placed by JS) so the clipped meta rows
+   it lives in can't cut it off */
+.rot-tip {
+  position: fixed;
+  z-index: 40;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  background: var(--bg1);
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  font-family: var(--mono);
+  white-space: normal;
+  text-align: left;
+}
+.rot-tip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.rot-tip-title {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.rot-tip-pct {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.rot-tip-body {
+  font-family: var(--sans);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.rot-tip-stage {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.rot[data-stage='rotting'] .rot-tip-stage {
+  color: var(--amber);
+}
+.rot[data-stage='late'] .rot-tip-stage,
+.rot[data-stage='dying'] .rot-tip-stage,
+.rot[data-stage='dead'] .rot-tip-stage {
+  color: var(--moss-ink);
+}
+.rot-tip-scar {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--ghost);
+}
+
+/* detail panel row: bar + raw numbers side by side */
+.detail-rot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.detail-rot .rot {
+  margin-left: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clawd-body,
+  .cl-fly,
+  .cl-soul,
+  .rot-label {
+    animation: none !important;
+  }
 }

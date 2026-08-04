@@ -14,7 +14,7 @@ import { transcriptTail } from './transcript-peek'
 import { checkRepo } from './wrapup'
 import type { FleetSnapshot, LaunchRequest } from '../shared/types'
 
-const store = new InstanceStore()
+const store = new InstanceStore(path.join(app.getPath('userData'), 'model-windows.json'))
 const ptys = new PtyManager()
 const hookServer = new HookServer()
 const prPoller = new PrStatusPoller()

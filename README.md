@@ -34,6 +34,7 @@ If Electron's binary fails to download during install (corporate network), run `
 - **Needs-you detection + toasts** — global Claude Code hooks (Notification/Stop/UserPromptSubmit) POST to a localhost receiver (port 47831). When an instance blocks on a permission or question you get a Windows toast; clicking it focuses that instance.
 - **Catch me up** — per-instance button that distills the transcript tail and asks Haiku (via your own `claude -p` auth) for a NOW / DONE / NEEDS brief. Cached until the session changes.
 - **Quick actions** — open PRs, open folder / VS Code, copy branch or resume command, kill a wedged instance.
+- **Context rot bar** — every card/pane shows how full the clone's context window is, as an animated decay meter: green sliver while fresh, amber creep past 60% (`ROT 71%`), pulsing red past 85% (auto-compact — the forced summary that loses detail — is imminent), skull scar once a session has compacted. Hover explains it with the raw numbers. Window sizes aren't recorded anywhere by the CLI, so Kamino proves them from evidence: a startup scan of recent transcript tails (compact `preTokens` + per-model token high-water marks) seeds a per-model map in `model-windows.json` (userData), and live ratchets/compactions keep teaching it. Models with no long-session history default to 200k until proven.
 
 ## How it works
 
@@ -67,5 +68,5 @@ src/renderer/          React UI (roster cards, terminal workspace, dialogs)
 ## Backlog
 
 - PR CI/review status overlay (`gh pr view`) on cards
-- Turn token/cost per instance from transcript `usage` records
+- Turn cost (dollars) per instance — context occupancy ships as the rot bar; pricing needs a per-model rate table
 - App icon (packaged exe uses the stock Electron icon — `signAndEditExecutable: false` skips rcedit because winCodeSign may be blocked on the corporate network)

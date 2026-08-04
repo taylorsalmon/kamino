@@ -17,11 +17,13 @@ import {
   SESSIONS_DIR,
   describeAssistant,
   derivePendingAsk,
+  extractContextTokens,
   extractPickerAnswers,
   extractToolResultIds,
   extractUserPrompt,
   isPidAlive,
   readSessionRegistry,
+  scanWindowEvidence,
   transcriptPath,
   type PendingToolUse,
   type SessionRegistryEntry,
@@ -31,6 +33,22 @@ import { TranscriptTailer } from './transcript-tailer'
 import type { FleetSnapshot, Instance, InstanceState, PendingAskKind } from '../shared/types'
 
 const DEAD_RETENTION_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Context-window tiers Claude Code runs with. Nothing under ~/.claude records
+ * which one a session got, so assume the small tier and ratchet up when the
+ * observed token count proves the window must be bigger (a 200k session
+ * auto-compacts before it could ever reach 95% falsely).
+ */
+const WINDOW_TIERS = [200_000, 1_000_000]
+
+function ratchetWindow(current: number, tokens: number): number {
+  let w = current
+  for (const tier of WINDOW_TIERS) {
+    if (tier > w && tokens > w * 0.95) w = tier
+  }
+  return w
+}
 
 interface Tracked {
   instance: Instance
@@ -46,6 +64,76 @@ interface Tracked {
 
 export class InstanceStore extends EventEmitter {
   private tracked = new Map<string, Tracked>() // key: sessionId
+  /** model → biggest window this machine has PROVEN for it (ratchet or
+   *  compact preTokens). Persisted so fresh sessions of a known model start
+   *  with the right denominator instead of false-alarming at 200k. */
+  private modelWindows: Record<string, number> = {}
+  private windowSaveTimer: NodeJS.Timeout | null = null
+
+  constructor(private readonly windowCachePath?: string) {
+    super()
+    if (windowCachePath) {
+      try {
+        const raw = JSON.parse(fs.readFileSync(windowCachePath, 'utf-8'))
+        if (raw && typeof raw === 'object') this.modelWindows = raw
+      } catch {
+        /* first run */
+      }
+    }
+  }
+
+  private learnWindow(model: string | undefined, window: number): void {
+    if (!model || window <= WINDOW_TIERS[0]) return
+    if ((this.modelWindows[model] ?? 0) >= window) return
+    this.modelWindows[model] = window
+    if (!this.windowCachePath || this.windowSaveTimer) return
+    this.windowSaveTimer = setTimeout(() => {
+      this.windowSaveTimer = null
+      try {
+        fs.writeFileSync(this.windowCachePath!, JSON.stringify(this.modelWindows))
+      } catch {
+        /* cache only — losing it just means re-learning */
+      }
+    }, 1000)
+  }
+
+  /**
+   * One-shot startup scan: recent transcript tails prove per-model windows
+   * (e.g. a 1M-context account), so fresh sessions get the right denominator
+   * instead of false-amber rot against the conservative 200k default.
+   */
+  private async seedWindowsFromHistory(): Promise<void> {
+    let evidence: Record<string, number>
+    try {
+      evidence = await scanWindowEvidence(30 * 24 * 60 * 60 * 1000)
+    } catch {
+      return
+    }
+    for (const [model, tokens] of Object.entries(evidence)) {
+      this.learnWindow(model, ratchetWindow(WINDOW_TIERS[0], tokens))
+    }
+    // re-denominator anything already on the board
+    let changed = false
+    for (const t of this.tracked.values()) {
+      const ctx = t.instance.context
+      if (!ctx) continue
+      const window = this.seedWindow(t.instance)
+      if (window !== ctx.window) {
+        t.instance.context = { ...ctx, window, pct: ctx.tokens / window }
+        changed = true
+      }
+    }
+    if (changed) this.queueBroadcast()
+  }
+
+  /** Window to assume for this instance before new evidence arrives. */
+  private seedWindow(inst: Instance): number {
+    return Math.max(
+      inst.context?.window ?? 0,
+      this.modelWindows[inst.model ?? ''] ?? 0,
+      WINDOW_TIERS[0]
+    )
+  }
   private watcher: FSWatcher | null = null
   private rosterSessionIds = new Set<string>()
   private broadcastTimer: NodeJS.Timeout | null = null
@@ -69,6 +157,7 @@ export class InstanceStore extends EventEmitter {
   }
 
   start(): void {
+    void this.seedWindowsFromHistory()
     this.refreshRoster()
     this.refreshRegistry()
     // chokidar catches create/delete quickly; the interval poll re-reads
@@ -87,6 +176,7 @@ export class InstanceStore extends EventEmitter {
   stop(): void {
     this.watcher?.close()
     if (this.pollTimer) clearInterval(this.pollTimer)
+    if (this.windowSaveTimer) clearTimeout(this.windowSaveTimer)
     for (const t of this.tracked.values()) t.tailer?.stop()
     this.tracked.clear()
   }
@@ -291,6 +381,21 @@ export class InstanceStore extends EventEmitter {
       case 'system':
         if (rec.subtype === 'away_summary' && typeof rec.content === 'string') {
           inst.recent.awaySummary = rec.content
+        } else if (rec.subtype === 'compact_boundary') {
+          // the rot won: conversation squashed to a summary
+          const meta = rec.compactMetadata
+          const prev = inst.context
+          const pre = typeof meta?.preTokens === 'number' ? meta.preTokens : (prev?.tokens ?? 0)
+          const window = ratchetWindow(this.seedWindow(inst), pre)
+          this.learnWindow(inst.model, window)
+          const tokens = typeof meta?.postTokens === 'number' ? meta.postTokens : 0
+          inst.context = {
+            tokens,
+            window,
+            pct: tokens / window,
+            compactions: (prev?.compactions ?? 0) + 1,
+            lastCompactAt: rec.timestamp ? Date.parse(rec.timestamp) : Date.now()
+          }
         } else if (rec.subtype === 'turn_duration') {
           // turn ended
           inst.now.turnStartedAt = undefined
@@ -341,6 +446,19 @@ export class InstanceStore extends EventEmitter {
       case 'assistant': {
         if (rec.isSidechain) return
         if (rec.message?.model) inst.model = rec.message.model
+        const ctxTokens = extractContextTokens(rec)
+        if (ctxTokens !== null) {
+          const prev = inst.context
+          const window = ratchetWindow(this.seedWindow(inst), ctxTokens)
+          this.learnWindow(inst.model, window)
+          inst.context = {
+            tokens: ctxTokens,
+            window,
+            pct: ctxTokens / window,
+            compactions: prev?.compactions ?? 0,
+            lastCompactAt: prev?.lastCompactAt
+          }
+        }
         const content = rec.message?.content
         if (Array.isArray(content)) {
           for (const blk of content) {
