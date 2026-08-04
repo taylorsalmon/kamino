@@ -6,6 +6,7 @@ import { TerminalView } from './components/TerminalView'
 import { LaunchDialog } from './components/LaunchDialog'
 import { WrapupDialog } from './components/WrapupDialog'
 import { GridPane } from './components/GridPane'
+import { CheatSheet } from './components/CheatSheet'
 import { focusTerminal, setTermFontSize } from './terminals'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
@@ -57,6 +58,7 @@ export default function App(): React.JSX.Element {
   const [showLaunch, setShowLaunch] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [showWrapup, setShowWrapup] = useState(false)
+  const [showCheats, setShowCheats] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<ViewMode>(
     () => (localStorage.getItem('fleet:view') as ViewMode) || 'grid'
@@ -310,6 +312,17 @@ export default function App(): React.JSX.Element {
   viewRef.current = view
   const askCursor = useRef(0)
 
+  // fleet-wide actions behind shortcuts, in a ref so the mount-once key
+  // listener below always calls the current closures
+  const actionsRef = useRef<Record<string, () => void>>({})
+  actionsRef.current = {
+    cheats: () => setShowCheats((v) => !v),
+    flipView: () => switchView(viewRef.current === 'grid' ? 'focus' : 'grid'),
+    launch: () => setShowLaunch(true),
+    density: () => setDensity((d) => (d === 'roomy' ? 'fit' : d === 'fit' ? 'max' : 'roomy')),
+    sweep: () => setShowWrapup(true)
+  }
+
   useEffect(() => {
     const goto = (t: { id: string; ptyId: string | null } | undefined): void => {
       if (!t) return
@@ -330,8 +343,26 @@ export default function App(): React.JSX.Element {
     }
     // terminals forward these shortcuts via events (xterm owns their
     // keyboard); this keydown covers presses everywhere else
+    // Ctrl+Shift+letter fleet actions + F1 cheat sheet — codes must stay in
+    // sync with the terminal forwarder (terminals.ts) and the CheatSheet rows
+    const CHORDS: Record<string, string> = {
+      KeyG: 'flipView',
+      KeyN: 'launch',
+      KeyD: 'density',
+      KeyS: 'sweep'
+    }
     const onKey = (e: KeyboardEvent): void => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'F1' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault()
+        actionsRef.current.cheats()
+        return
+      }
+      if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && CHORDS[e.code]) {
+        e.preventDefault()
+        actionsRef.current[CHORDS[e.code]]()
+        return
+      }
       if (!e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return
       const digit = /^Digit([1-9])$/.exec(e.code)
       if (digit) {
@@ -342,12 +373,15 @@ export default function App(): React.JSX.Element {
         onAsk()
       }
     }
+    const onAction = (e: Event): void => actionsRef.current[(e as CustomEvent<string>).detail]?.()
     window.addEventListener('kamino:focus-slot', onSlot)
     window.addEventListener('kamino:next-ask', onAsk)
+    window.addEventListener('kamino:action', onAction)
     window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('kamino:focus-slot', onSlot)
       window.removeEventListener('kamino:next-ask', onAsk)
+      window.removeEventListener('kamino:action', onAction)
       window.removeEventListener('keydown', onKey)
     }
   }, [])
@@ -531,6 +565,18 @@ export default function App(): React.JSX.Element {
                   <span className="menu-item-title">🧹 End-of-shift sweep</span>
                   <span className="menu-item-sub">
                     check every repo is committed, pushed &amp; on a PR before you close out
+                  </span>
+                </button>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setShowCheats(true)
+                  }}
+                >
+                  <span className="menu-item-title">⌨ Fleet commands</span>
+                  <span className="menu-item-sub">
+                    keyboard cheat sheet — Ctrl+` jumps to the next clone awaiting orders (F1)
                   </span>
                 </button>
               </div>
@@ -833,6 +879,7 @@ export default function App(): React.JSX.Element {
       )}
       </div>
 
+      {showCheats && <CheatSheet onClose={() => setShowCheats(false)} />}
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
       {showWrapup && (
         <WrapupDialog
