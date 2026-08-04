@@ -30,6 +30,20 @@ interface PtyRef {
   cwd: string
 }
 
+/** pane size in grid tracks — fixed steps, never per-pixel */
+export interface PaneSize {
+  w: 1 | 2
+  h: 1 | 2
+}
+
+function loadJson<T>(key: string, fallback: T): T {
+  try {
+    return JSON.parse(localStorage.getItem(key) || '') as T
+  } catch {
+    return fallback
+  }
+}
+
 export default function App(): React.JSX.Element {
   const [snap, setSnap] = useState<FleetSnapshot>({ instances: [], updatedAt: 0 })
   const [prStatus, setPrStatus] = useState<PrStatusMap>({})
@@ -55,6 +69,26 @@ export default function App(): React.JSX.Element {
     localStorage.setItem('fleet:density', density)
     setTermFontSize(DENSITY[density].font)
   }, [density])
+
+  // wall layout — manual slot order (drag & drop) and per-pane spans, both
+  // in fixed grid steps. Keyed by sessionId/ptyId, survives restarts.
+  const [paneOrder, setPaneOrder] = useState<string[]>(() => loadJson('fleet:pane-order', []))
+  const [paneSizes, setPaneSizes] = useState<Record<string, PaneSize>>(() =>
+    loadJson('fleet:pane-sizes', {})
+  )
+  useEffect(() => {
+    localStorage.setItem('fleet:pane-order', JSON.stringify(paneOrder))
+  }, [paneOrder])
+  useEffect(() => {
+    localStorage.setItem('fleet:pane-sizes', JSON.stringify(paneSizes))
+  }, [paneSizes])
+
+  const togglePaneSize = useCallback((id: string, axis: keyof PaneSize) => {
+    setPaneSizes((m) => {
+      const cur = m[id] ?? { w: 1, h: 1 }
+      return { ...m, [id]: { ...cur, [axis]: cur[axis] === 2 ? 1 : 2 } }
+    })
+  }, [])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -151,13 +185,34 @@ export default function App(): React.JSX.Element {
     [ptyRefs, snap]
   )
 
-  /** wall order — same stable launch-time sort the grid renders with */
-  const gridInstances = useMemo(
-    () =>
-      snap.instances
-        .filter((i) => i.state !== 'dead')
-        .sort((a, b) => a.startedAt - b.startedAt || a.sessionId.localeCompare(b.sessionId)),
-    [snap]
+  /** wall order — stable launch-time sort, then any manual drag order on
+   *  top. Manual positions win; new clones append in launch order. */
+  const gridInstances = useMemo(() => {
+    const base = snap.instances
+      .filter((i) => i.state !== 'dead')
+      .sort((a, b) => a.startedAt - b.startedAt || a.sessionId.localeCompare(b.sessionId))
+    const pos = new Map(paneOrder.map((id, i) => [id, i]))
+    return base
+      .map((inst, i) => ({ inst, key: pos.get(inst.sessionId) ?? paneOrder.length + i }))
+      .sort((a, b) => a.key - b.key)
+      .map((x) => x.inst)
+  }, [snap, paneOrder])
+
+  /** drop src onto dst: src takes dst's slot, everything between shifts */
+  const movePane = useCallback(
+    (srcId: string, dstId: string) => {
+      if (srcId === dstId) return
+      const ids = [
+        ...gridInstances.map((i) => i.sessionId),
+        ...startingPtys.map((p) => p.ptyId)
+      ]
+      const from = ids.indexOf(srcId)
+      const to = ids.indexOf(dstId)
+      if (from < 0 || to < 0) return
+      ids.splice(to, 0, ...ids.splice(from, 1))
+      setPaneOrder(ids)
+    },
+    [gridInstances, startingPtys]
   )
 
   // Ctrl+1..9 / Ctrl+` targets, kept in refs so the mount-once key listener
@@ -457,10 +512,14 @@ export default function App(): React.JSX.Element {
           {gridInstances.map((inst, ix) => (
               <GridPane
                 key={inst.sessionId}
+                paneId={inst.sessionId}
                 instance={inst}
                 ptyId={ptyByPid.get(inst.pid)?.ptyId ?? null}
                 now={now}
                 slot={ix}
+                size={paneSizes[inst.sessionId] ?? { w: 1, h: 1 }}
+                onToggleSize={(axis) => togglePaneSize(inst.sessionId, axis)}
+                onDropPane={(srcId) => movePane(srcId, inst.sessionId)}
                 adoptPending={inst.sessionId in pendingAdopt}
                 prStatus={prStatus}
                 onAdopt={() => setPendingAdopt((m) => ({ ...m, [inst.sessionId]: { cwd: inst.cwd } }))}
@@ -476,10 +535,14 @@ export default function App(): React.JSX.Element {
           {startingPtys.map((p, ix) => (
             <GridPane
               key={p.ptyId}
+              paneId={p.ptyId}
               instance={null}
               ptyId={p.ptyId}
               now={now}
               slot={gridInstances.length + ix}
+              size={paneSizes[p.ptyId] ?? { w: 1, h: 1 }}
+              onToggleSize={(axis) => togglePaneSize(p.ptyId, axis)}
+              onDropPane={(srcId) => movePane(srcId, p.ptyId)}
               adoptPending={false}
               onAdopt={() => {}}
               onFocus={() => {
