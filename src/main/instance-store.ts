@@ -299,7 +299,9 @@ export class InstanceStore extends EventEmitter {
             inst.state = 'idle'
             this.clearAsk(inst)
           }
-          if (inst.now.title) inst.now.activity = `Done: ${inst.now.title}`
+          // no "Done: <title>" rewrite — the title is already on the pane;
+          // repeating it in the activity slot just pollutes the strip
+          inst.now.activity = ''
         }
         return
       case 'user': {

@@ -6,6 +6,7 @@ import { TerminalView } from './components/TerminalView'
 import { LaunchDialog } from './components/LaunchDialog'
 import { WrapupDialog } from './components/WrapupDialog'
 import { GridPane } from './components/GridPane'
+import { FeedPanel, type FeedEvent, type FeedTone } from './components/FeedPanel'
 import { focusTerminal, setTermFontSize } from './terminals'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
@@ -40,6 +41,9 @@ export interface PaneSize {
 const GRID_GAP = 6
 const GRID_PAD = 6
 
+const FEED_CAP = 200
+const snip = (s: string, n = 110): string => (s.length > n ? s.slice(0, n - 1) + '…' : s)
+
 function loadJson<T>(key: string, fallback: T): T {
   try {
     return JSON.parse(localStorage.getItem(key) || '') as T
@@ -68,6 +72,70 @@ export default function App(): React.JSX.Element {
     const d = localStorage.getItem('fleet:density') as Density
     return d in DENSITY ? d : 'fit'
   })
+  const [feedOpen, setFeedOpen] = useState<boolean>(() => localStorage.getItem('fleet:feed-open') !== '0')
+  const [feed, setFeed] = useState<FeedEvent[]>([])
+  useEffect(() => {
+    localStorage.setItem('fleet:feed-open', feedOpen ? '1' : '0')
+  }, [feedOpen])
+
+  // fleet feed — derive events by diffing successive snapshots. The first
+  // snapshot only primes the baseline (existing clones aren't "news").
+  const prevInstRef = useRef<Map<string, Instance> | null>(null)
+  const feedIdRef = useRef(1)
+  useEffect(() => {
+    if (snap.updatedAt === 0) return
+    const prev = prevInstRef.current
+    prevInstRef.current = new Map(snap.instances.map((i) => [i.sessionId, i]))
+    if (!prev) return
+    const fresh: FeedEvent[] = []
+    const push = (inst: Instance, text: string, tone: FeedTone): void => {
+      fresh.push({ id: feedIdRef.current++, at: Date.now(), sessionId: inst.sessionId, name: inst.name, text, tone })
+    }
+    for (const inst of snap.instances) {
+      const was = prev.get(inst.sessionId)
+      if (!was) {
+        if (inst.state !== 'dead') push(inst, `commissioned · ${inst.repo}`, 'info')
+        continue
+      }
+      if (was.state !== inst.state) {
+        if (inst.state === 'needs-you') {
+          push(inst, snip(`needs you — ${inst.now.pendingAsk ?? inst.now.activity}`), 'ask')
+        } else if (inst.state === 'idle' && (was.state === 'busy' || was.state === 'needs-you')) {
+          push(inst, snip(`finished — ${inst.now.title || 'turn complete'}`), 'ok')
+        } else if (inst.state === 'busy' && was.state !== 'busy') {
+          push(inst, snip(`started — ${inst.recent.lastPrompt || inst.now.title || 'new turn'}`), 'busy')
+        } else if (inst.state === 'dead') {
+          push(inst, 'session ended', 'info')
+        }
+      }
+      for (const pr of inst.recent.prs) {
+        if (!was.recent.prs.some((p) => p.url === pr.url)) push(inst, `opened PR #${pr.number}`, 'info')
+      }
+    }
+    if (fresh.length > 0) setFeed((f) => [...fresh.reverse(), ...f].slice(0, FEED_CAP))
+  }, [snap])
+
+  // PR status transitions (merged / checks failing) join the feed too
+  const prevPrRef = useRef<PrStatusMap | null>(null)
+  useEffect(() => {
+    const prev = prevPrRef.current
+    prevPrRef.current = prStatus
+    if (!prev) return
+    const fresh: FeedEvent[] = []
+    for (const [url, st] of Object.entries(prStatus)) {
+      const was = prev[url]
+      if (!was) continue
+      const owner = snap.instances.find((i) => i.recent.prs.some((p) => p.url === url))
+      if (!owner) continue
+      const mk = (text: string, tone: FeedTone): void => {
+        fresh.push({ id: feedIdRef.current++, at: Date.now(), sessionId: owner.sessionId, name: owner.name, text, tone })
+      }
+      if (was.state !== 'merged' && st.state === 'merged') mk(`PR #${st.number} merged`, 'ok')
+      else if (was.checks !== 'fail' && st.checks === 'fail') mk(`PR #${st.number} checks failing`, 'bad')
+      else if (was.checks === 'fail' && st.checks === 'pass' && st.state === 'open') mk(`PR #${st.number} checks green again`, 'ok')
+    }
+    if (fresh.length > 0) setFeed((f) => [...fresh.reverse(), ...f].slice(0, FEED_CAP))
+  }, [prStatus, snap])
 
   useEffect(() => {
     localStorage.setItem('fleet:density', density)
@@ -400,6 +468,19 @@ export default function App(): React.JSX.Element {
 
   const showTerminal = selectedPty && !showInfo
 
+  /** feed click → put the user in front of that clone */
+  function jumpToSession(sessionId: string): void {
+    const inst = snap.instances.find((i) => i.sessionId === sessionId)
+    const ptyId = inst ? ptyByPid.get(inst.pid)?.ptyId : undefined
+    if (view === 'grid' && ptyId && inst?.state !== 'dead') {
+      focusTerminal(ptyId)
+    } else {
+      setSelectedId(sessionId)
+      setShowInfo(false)
+      switchView('focus')
+    }
+  }
+
   async function executeOrder66(): Promise<void> {
     const targets = snap.instances.filter((i) => i.state !== 'dead')
     const n = targets.length + startingPtys.length
@@ -491,6 +572,13 @@ export default function App(): React.JSX.Element {
           </div>
         )}
         <button
+          className={`btn feed-btn${feedOpen ? ' active' : ''}`}
+          title={feedOpen ? 'Hide the fleet feed' : 'Fleet feed — everything that happened, newest first'}
+          onClick={() => setFeedOpen((v) => !v)}
+        >
+          ⚑ Feed
+        </button>
+        <button
           className="btn theme-btn"
           title={theme === 'light' ? 'Night cycle' : 'Day cycle'}
           onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
@@ -538,9 +626,6 @@ export default function App(): React.JSX.Element {
             </>
           )}
         </div>
-        <div className="topbar-clock">
-          {new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </div>
       </header>
 
       {!hooksOk && (
@@ -559,6 +644,7 @@ export default function App(): React.JSX.Element {
         </div>
       )}
 
+      <div className="content-row">
       {view === 'grid' ? (
         <div
           ref={gridRef}
@@ -739,8 +825,12 @@ export default function App(): React.JSX.Element {
               {selectedInstance && (
                 <div className="hud-row sub">
                   <span className="workspace-activity">
-                    <span className="caret">▸</span>
-                    {selectedInstance.now.activity}
+                    {selectedInstance.now.activity && (
+                      <>
+                        <span className="caret">▸</span>
+                        {selectedInstance.now.activity}
+                      </>
+                    )}
                   </span>
                   <span className="topbar-spacer" />
                   {selectedInstance.recent.prs.slice(-3).map((pr) => {
@@ -830,6 +920,8 @@ export default function App(): React.JSX.Element {
         </section>
       </div>
       )}
+      {feedOpen && <FeedPanel events={feed} now={now} onJump={jumpToSession} onClear={() => setFeed([])} />}
+      </div>
 
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
       {showWrapup && <WrapupDialog onClose={() => setShowWrapup(false)} />}

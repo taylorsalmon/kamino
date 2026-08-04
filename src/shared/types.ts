@@ -33,6 +33,8 @@ export interface PrStatus {
   checksPending: number
   fetchedAt: number
   error?: string
+  /** True when this is a carried-forward last-known status because the latest gh poll failed. */
+  stale?: boolean
 }
 
 /** Keyed by PR url. */
@@ -85,6 +87,13 @@ export interface Instance {
   version?: string
   model?: string
   permissionMode?: string
+}
+
+/** One message in the hover-peek transcript tail. */
+export interface TranscriptTailMsg {
+  who: 'you' | 'clone'
+  text: string
+  at?: number
 }
 
 export interface FleetSnapshot {

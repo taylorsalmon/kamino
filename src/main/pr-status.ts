@@ -134,6 +134,14 @@ export class PrStatusPoller extends EventEmitter {
             return
           }
           if (err) {
+            const error = shortGhError(stderr || err.message)
+            const prev = this.cache.get(url)
+            if (prev && prev.state !== 'unknown') {
+              // Keep the last-known status instead of stomping it with '?' —
+              // a single network blip shouldn't erase a good answer.
+              resolve({ ...prev, fetchedAt: Date.now(), stale: true, error })
+              return
+            }
             resolve({
               url,
               number: numberFromUrl,
@@ -145,7 +153,7 @@ export class PrStatusPoller extends EventEmitter {
               checksFailed: 0,
               checksPending: 0,
               fetchedAt: Date.now(),
-              error: shortGhError(stderr || err.message)
+              error
             })
             return
           }

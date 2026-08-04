@@ -259,10 +259,146 @@ body {
   font-size: 11px;
   color: var(--muted);
 }
-.topbar-clock {
+/* ── Content row: active view + collapsible fleet feed ────────────────── */
+.content-row {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.content-row > .grid-view,
+.content-row > .main {
+  flex: 1;
+  min-width: 0;
+}
+
+.feed-btn.active {
+  background: var(--bg3);
+}
+
+.feed-panel {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  background: var(--bg0);
+}
+.feed-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.feed-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+}
+.feed-clear {
+  background: none;
+  border: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  cursor: pointer;
+}
+.feed-clear:hover {
+  color: var(--text);
+}
+.feed-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.feed-empty {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--faint);
+  padding: 14px 8px;
+  line-height: 1.5;
+}
+.feed-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 6px 8px;
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.feed-item:hover {
+  border-color: var(--faint);
+}
+.feed-glyph {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.feed-glyph[data-tone='ok'] {
+  color: var(--sage);
+}
+.feed-glyph[data-tone='ask'] {
+  color: var(--coral);
+}
+.feed-glyph[data-tone='busy'] {
+  color: var(--amber);
+}
+.feed-glyph[data-tone='bad'] {
+  color: var(--coral);
+}
+.feed-glyph[data-tone='info'] {
+  color: var(--faint);
+}
+.feed-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.feed-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.feed-name {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.feed-when {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--faint);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.feed-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* ── Main split ───────────────────────────────────────────────────────── */
@@ -1184,6 +1320,55 @@ body.pane-resizing .terminal-view {
   padding: 3px 12px 4px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
+  position: relative; /* anchors the hover peek popover */
+}
+
+/* hover peek — recent exchanges, read-only so clicks fall through */
+.pane-peek {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 8px;
+  right: 8px;
+  z-index: 7;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg1);
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  max-height: 260px;
+  overflow: hidden;
+}
+.peek-msg {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  min-width: 0;
+}
+.peek-msg .who {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--faint);
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.peek-msg[data-who='you'] .who {
+  color: var(--amber);
+}
+.peek-text {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .pane-quote {
   font-family: var(--mono);
