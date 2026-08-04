@@ -924,7 +924,19 @@ export default function App(): React.JSX.Element {
       </div>
 
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
-      {showWrapup && <WrapupDialog onClose={() => setShowWrapup(false)} />}
+      {showWrapup && (
+        <WrapupDialog
+          onClose={() => setShowWrapup(false)}
+          resolveTarget={(r) => {
+            for (const i of snap.instances) {
+              if (i.state === 'dead' || i.cwd !== r.cwd) continue
+              const ptyId = ptyByPid.get(i.pid)?.ptyId
+              if (ptyId) return { ptyId, name: i.name }
+            }
+            return null
+          }}
+        />
+      )}
     </div>
   )
 }
