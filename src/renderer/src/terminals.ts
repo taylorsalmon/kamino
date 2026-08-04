@@ -127,6 +127,20 @@ function wireClipboard(ptyId: string, term: Terminal, host: HTMLDivElement): voi
       window.dispatchEvent(new Event('kamino:toggle-info'))
       return false
     }
+    if (e.type === 'keydown' && e.key === 'F1' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+      window.dispatchEvent(new CustomEvent('kamino:action', { detail: 'cheats' }))
+      return false
+    }
+    // Ctrl+Shift+letter fleet actions — codes must stay in sync with App's
+    // CHORDS map and the CheatSheet rows. C/V stay with the terminal (copy
+    // & paste below).
+    if (e.type === 'keydown' && e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey) {
+      const chord = { KeyG: 'flipView', KeyN: 'launch', KeyD: 'density', KeyS: 'sweep' }[e.code]
+      if (chord) {
+        window.dispatchEvent(new CustomEvent('kamino:action', { detail: chord }))
+        return false
+      }
+    }
     // fleet navigation works even while a terminal owns the keyboard:
     // Ctrl+1..9 jumps to that slot, Ctrl+` to the next clone awaiting orders
     if (e.type === 'keydown' && e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {

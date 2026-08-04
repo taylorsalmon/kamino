@@ -6,7 +6,7 @@ import { TerminalView } from './components/TerminalView'
 import { LaunchDialog } from './components/LaunchDialog'
 import { WrapupDialog } from './components/WrapupDialog'
 import { GridPane } from './components/GridPane'
-import { FeedPanel, type FeedEvent, type FeedTone } from './components/FeedPanel'
+import { CheatSheet } from './components/CheatSheet'
 import { focusTerminal, setTermFontSize } from './terminals'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
@@ -41,9 +41,6 @@ export interface PaneSize {
 const GRID_GAP = 6
 const GRID_PAD = 6
 
-const FEED_CAP = 200
-const snip = (s: string, n = 110): string => (s.length > n ? s.slice(0, n - 1) + '…' : s)
-
 function loadJson<T>(key: string, fallback: T): T {
   try {
     return JSON.parse(localStorage.getItem(key) || '') as T
@@ -61,6 +58,7 @@ export default function App(): React.JSX.Element {
   const [showLaunch, setShowLaunch] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [showWrapup, setShowWrapup] = useState(false)
+  const [showCheats, setShowCheats] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<ViewMode>(
     () => (localStorage.getItem('fleet:view') as ViewMode) || 'grid'
@@ -72,71 +70,6 @@ export default function App(): React.JSX.Element {
     const d = localStorage.getItem('fleet:density') as Density
     return d in DENSITY ? d : 'fit'
   })
-  const [feedOpen, setFeedOpen] = useState<boolean>(() => localStorage.getItem('fleet:feed-open') !== '0')
-  const [feed, setFeed] = useState<FeedEvent[]>([])
-  useEffect(() => {
-    localStorage.setItem('fleet:feed-open', feedOpen ? '1' : '0')
-  }, [feedOpen])
-
-  // fleet feed — derive events by diffing successive snapshots. The first
-  // snapshot only primes the baseline (existing clones aren't "news").
-  const prevInstRef = useRef<Map<string, Instance> | null>(null)
-  const feedIdRef = useRef(1)
-  useEffect(() => {
-    if (snap.updatedAt === 0) return
-    const prev = prevInstRef.current
-    prevInstRef.current = new Map(snap.instances.map((i) => [i.sessionId, i]))
-    if (!prev) return
-    const fresh: FeedEvent[] = []
-    const push = (inst: Instance, text: string, tone: FeedTone): void => {
-      fresh.push({ id: feedIdRef.current++, at: Date.now(), sessionId: inst.sessionId, name: inst.name, text, tone })
-    }
-    for (const inst of snap.instances) {
-      const was = prev.get(inst.sessionId)
-      if (!was) {
-        if (inst.state !== 'dead') push(inst, `commissioned · ${inst.repo}`, 'info')
-        continue
-      }
-      if (was.state !== inst.state) {
-        if (inst.state === 'needs-you') {
-          push(inst, snip(`needs you — ${inst.now.pendingAsk ?? inst.now.activity}`), 'ask')
-        } else if (inst.state === 'idle' && (was.state === 'busy' || was.state === 'needs-you')) {
-          push(inst, snip(`finished — ${inst.now.title || 'turn complete'}`), 'ok')
-        } else if (inst.state === 'busy' && was.state !== 'busy') {
-          push(inst, snip(`started — ${inst.recent.lastPrompt || inst.now.title || 'new turn'}`), 'busy')
-        } else if (inst.state === 'dead') {
-          push(inst, 'session ended', 'info')
-        }
-      }
-      for (const pr of inst.recent.prs) {
-        if (!was.recent.prs.some((p) => p.url === pr.url)) push(inst, `opened PR #${pr.number}`, 'info')
-      }
-    }
-    if (fresh.length > 0) setFeed((f) => [...fresh.reverse(), ...f].slice(0, FEED_CAP))
-  }, [snap])
-
-  // PR status transitions (merged / checks failing) join the feed too
-  const prevPrRef = useRef<PrStatusMap | null>(null)
-  useEffect(() => {
-    const prev = prevPrRef.current
-    prevPrRef.current = prStatus
-    if (!prev) return
-    const fresh: FeedEvent[] = []
-    for (const [url, st] of Object.entries(prStatus)) {
-      const was = prev[url]
-      if (!was) continue
-      const owner = snap.instances.find((i) => i.recent.prs.some((p) => p.url === url))
-      if (!owner) continue
-      const mk = (text: string, tone: FeedTone): void => {
-        fresh.push({ id: feedIdRef.current++, at: Date.now(), sessionId: owner.sessionId, name: owner.name, text, tone })
-      }
-      if (was.state !== 'merged' && st.state === 'merged') mk(`PR #${st.number} merged`, 'ok')
-      else if (was.checks !== 'fail' && st.checks === 'fail') mk(`PR #${st.number} checks failing`, 'bad')
-      else if (was.checks === 'fail' && st.checks === 'pass' && st.state === 'open') mk(`PR #${st.number} checks green again`, 'ok')
-    }
-    if (fresh.length > 0) setFeed((f) => [...fresh.reverse(), ...f].slice(0, FEED_CAP))
-  }, [prStatus, snap])
-
   useEffect(() => {
     localStorage.setItem('fleet:density', density)
     setTermFontSize(DENSITY[density].font)
@@ -379,6 +312,17 @@ export default function App(): React.JSX.Element {
   viewRef.current = view
   const askCursor = useRef(0)
 
+  // fleet-wide actions behind shortcuts, in a ref so the mount-once key
+  // listener below always calls the current closures
+  const actionsRef = useRef<Record<string, () => void>>({})
+  actionsRef.current = {
+    cheats: () => setShowCheats((v) => !v),
+    flipView: () => switchView(viewRef.current === 'grid' ? 'focus' : 'grid'),
+    launch: () => setShowLaunch(true),
+    density: () => setDensity((d) => (d === 'roomy' ? 'fit' : d === 'fit' ? 'max' : 'roomy')),
+    sweep: () => setShowWrapup(true)
+  }
+
   useEffect(() => {
     const goto = (t: { id: string; ptyId: string | null } | undefined): void => {
       if (!t) return
@@ -399,8 +343,26 @@ export default function App(): React.JSX.Element {
     }
     // terminals forward these shortcuts via events (xterm owns their
     // keyboard); this keydown covers presses everywhere else
+    // Ctrl+Shift+letter fleet actions + F1 cheat sheet — codes must stay in
+    // sync with the terminal forwarder (terminals.ts) and the CheatSheet rows
+    const CHORDS: Record<string, string> = {
+      KeyG: 'flipView',
+      KeyN: 'launch',
+      KeyD: 'density',
+      KeyS: 'sweep'
+    }
     const onKey = (e: KeyboardEvent): void => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'F1' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault()
+        actionsRef.current.cheats()
+        return
+      }
+      if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && CHORDS[e.code]) {
+        e.preventDefault()
+        actionsRef.current[CHORDS[e.code]]()
+        return
+      }
       if (!e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return
       const digit = /^Digit([1-9])$/.exec(e.code)
       if (digit) {
@@ -411,12 +373,15 @@ export default function App(): React.JSX.Element {
         onAsk()
       }
     }
+    const onAction = (e: Event): void => actionsRef.current[(e as CustomEvent<string>).detail]?.()
     window.addEventListener('kamino:focus-slot', onSlot)
     window.addEventListener('kamino:next-ask', onAsk)
+    window.addEventListener('kamino:action', onAction)
     window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('kamino:focus-slot', onSlot)
       window.removeEventListener('kamino:next-ask', onAsk)
+      window.removeEventListener('kamino:action', onAction)
       window.removeEventListener('keydown', onKey)
     }
   }, [])
@@ -467,19 +432,6 @@ export default function App(): React.JSX.Element {
   }, [snap])
 
   const showTerminal = selectedPty && !showInfo
-
-  /** feed click → put the user in front of that clone */
-  function jumpToSession(sessionId: string): void {
-    const inst = snap.instances.find((i) => i.sessionId === sessionId)
-    const ptyId = inst ? ptyByPid.get(inst.pid)?.ptyId : undefined
-    if (view === 'grid' && ptyId && inst?.state !== 'dead') {
-      focusTerminal(ptyId)
-    } else {
-      setSelectedId(sessionId)
-      setShowInfo(false)
-      switchView('focus')
-    }
-  }
 
   async function executeOrder66(): Promise<void> {
     const targets = snap.instances.filter((i) => i.state !== 'dead')
@@ -572,13 +524,6 @@ export default function App(): React.JSX.Element {
           </div>
         )}
         <button
-          className={`btn feed-btn${feedOpen ? ' active' : ''}`}
-          title={feedOpen ? 'Hide the fleet feed' : 'Fleet feed — everything that happened, newest first'}
-          onClick={() => setFeedOpen((v) => !v)}
-        >
-          ⚑ Feed
-        </button>
-        <button
           className="btn theme-btn"
           title={theme === 'light' ? 'Night cycle' : 'Day cycle'}
           onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
@@ -620,6 +565,18 @@ export default function App(): React.JSX.Element {
                   <span className="menu-item-title">🧹 End-of-shift sweep</span>
                   <span className="menu-item-sub">
                     check every repo is committed, pushed &amp; on a PR before you close out
+                  </span>
+                </button>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setShowCheats(true)
+                  }}
+                >
+                  <span className="menu-item-title">⌨ Fleet commands</span>
+                  <span className="menu-item-sub">
+                    keyboard cheat sheet — Ctrl+` jumps to the next clone awaiting orders (F1)
                   </span>
                 </button>
               </div>
@@ -920,9 +877,9 @@ export default function App(): React.JSX.Element {
         </section>
       </div>
       )}
-      {feedOpen && <FeedPanel events={feed} now={now} onJump={jumpToSession} onClear={() => setFeed([])} />}
       </div>
 
+      {showCheats && <CheatSheet onClose={() => setShowCheats(false)} />}
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
       {showWrapup && (
         <WrapupDialog
