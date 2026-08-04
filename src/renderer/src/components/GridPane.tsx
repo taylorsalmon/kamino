@@ -10,11 +10,18 @@ import { DetailPanel } from './DetailPanel'
  * instances Fleet doesn't host).
  */
 export function GridPane(props: {
+  /** stable wall identity — sessionId (or ptyId while starting) */
+  paneId: string
   instance: Instance | null
   ptyId: string | null
   now: number
   /** position on the wall — slots 0-8 get a Ctrl+n jump badge */
   slot?: number
+  /** span in grid tracks (1 or 2 per axis) — fixed steps, never pixels */
+  size?: { w: 1 | 2; h: 1 | 2 }
+  onToggleSize?: (axis: 'w' | 'h') => void
+  /** another pane's grip was dropped here — it takes this slot */
+  onDropPane?: (srcPaneId: string) => void
   adoptPending: boolean
   prStatus?: PrStatusMap
   onAdopt: () => void
@@ -24,6 +31,8 @@ export function GridPane(props: {
   const state = inst?.state ?? 'busy'
   // per-pane flip between the live terminal and the intel/detail view
   const [showIntel, setShowIntel] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const size = props.size ?? { w: 1, h: 1 }
   // needs-you banner dismissal — comes back if a NEW ask appears
   const [askDismissed, setAskDismissed] = useState(false)
   const pendingAsk = state === 'needs-you' ? inst?.now.pendingAsk : undefined
@@ -36,9 +45,39 @@ export function GridPane(props: {
     : ''
 
   return (
-    <div className="pane" data-state={state}>
+    <div
+      className={`pane${dragOver ? ' drag-over' : ''}`}
+      data-state={state}
+      style={{
+        gridColumn: size.w === 2 ? 'span 2' : undefined,
+        gridRow: size.h === 2 ? 'span 2' : undefined
+      }}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('application/x-kamino-pane')) {
+          e.preventDefault()
+          setDragOver(true)
+        }
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        setDragOver(false)
+        const src = e.dataTransfer.getData('application/x-kamino-pane')
+        if (src) props.onDropPane?.(src)
+      }}
+    >
       <div className="pane-strip" data-state={state}>
         <span className="pane-rail" />
+        <span
+          className="pane-grip"
+          title="Drag to another pane to swap slots"
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData('application/x-kamino-pane', props.paneId)
+            e.dataTransfer.effectAllowed = 'move'
+          }}
+        >
+          ⠿
+        </span>
         {props.slot != null && props.slot < 9 && (
           <span className="pane-slot" title={`Ctrl+${props.slot + 1} puts your keyboard here`}>
             {props.slot + 1}
@@ -89,6 +128,20 @@ export function GridPane(props: {
               {showIntel ? '⌨' : '✦'}
             </button>
           )}
+          <button
+            className={`pane-chip size-btn${size.w === 2 ? ' on' : ''}`}
+            title={size.w === 2 ? 'Back to single width' : 'Widen — span two columns'}
+            onClick={() => props.onToggleSize?.('w')}
+          >
+            ⬌
+          </button>
+          <button
+            className={`pane-chip size-btn${size.h === 2 ? ' on' : ''}`}
+            title={size.h === 2 ? 'Back to single height' : 'Stretch — span two rows'}
+            onClick={() => props.onToggleSize?.('h')}
+          >
+            ⬍
+          </button>
           <button className="pane-chip focus-btn" title="Open in focus view" onClick={props.onFocus}>
             ⤢
           </button>
