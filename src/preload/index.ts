@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { FleetSnapshot, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession } from '../shared/types'
+import type { FleetSnapshot, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, WrapupReport } from '../shared/types'
 
 const api = {
   // fleet status
@@ -44,6 +44,9 @@ const api = {
   /** use instead of window.confirm(), which kills keyboard focus on Windows */
   confirm: (message: string, detail?: string): Promise<boolean> =>
     ipcRenderer.invoke('dialog:confirm', message, detail),
+
+  // wrap-up: is every repo committed, pushed, and in a PR?
+  wrapupCheck: (): Promise<WrapupReport> => ipcRenderer.invoke('wrapup:check'),
 
   // recap
   recap: (sessionId: string): Promise<{ text: string; generatedAt: number; fromCache: boolean }> =>

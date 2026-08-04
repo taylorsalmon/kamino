@@ -4,8 +4,9 @@ import { InstanceCard } from './components/InstanceCard'
 import { DetailPanel } from './components/DetailPanel'
 import { TerminalView } from './components/TerminalView'
 import { LaunchDialog } from './components/LaunchDialog'
+import { WrapupDialog } from './components/WrapupDialog'
 import { GridPane } from './components/GridPane'
-import { setTermFontSize } from './terminals'
+import { focusTerminal, setTermFontSize } from './terminals'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
 type ViewMode = 'grid' | 'focus'
@@ -37,6 +38,8 @@ export default function App(): React.JSX.Element {
   const [ptyRefs, setPtyRefs] = useState<PtyRef[]>([])
   const [showLaunch, setShowLaunch] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
+  const [showWrapup, setShowWrapup] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<ViewMode>(
     () => (localStorage.getItem('fleet:view') as ViewMode) || 'grid'
   )
@@ -147,6 +150,81 @@ export default function App(): React.JSX.Element {
     () => ptyRefs.filter((p) => !snap.instances.some((i) => i.pid === p.pid && i.state !== 'dead')),
     [ptyRefs, snap]
   )
+
+  /** wall order — same stable launch-time sort the grid renders with */
+  const gridInstances = useMemo(
+    () =>
+      snap.instances
+        .filter((i) => i.state !== 'dead')
+        .sort((a, b) => a.startedAt - b.startedAt || a.sessionId.localeCompare(b.sessionId)),
+    [snap]
+  )
+
+  // Ctrl+1..9 / Ctrl+` targets, kept in refs so the mount-once key listener
+  // always sees the current wall without rebinding
+  const slotTargets = useMemo(
+    () => [
+      ...gridInstances.map((i) => ({ id: i.sessionId, ptyId: ptyByPid.get(i.pid)?.ptyId ?? null })),
+      ...startingPtys.map((p) => ({ id: p.ptyId, ptyId: p.ptyId }))
+    ],
+    [gridInstances, ptyByPid, startingPtys]
+  )
+  const askTargets = useMemo(
+    () =>
+      gridInstances
+        .filter((i) => i.state === 'needs-you')
+        .map((i) => ({ id: i.sessionId, ptyId: ptyByPid.get(i.pid)?.ptyId ?? null })),
+    [gridInstances, ptyByPid]
+  )
+  const slotRef = useRef(slotTargets)
+  slotRef.current = slotTargets
+  const askRef = useRef(askTargets)
+  askRef.current = askTargets
+  const viewRef = useRef(view)
+  viewRef.current = view
+  const askCursor = useRef(0)
+
+  useEffect(() => {
+    const goto = (t: { id: string; ptyId: string | null } | undefined): void => {
+      if (!t) return
+      if (viewRef.current === 'grid') {
+        if (t.ptyId) focusTerminal(t.ptyId)
+      } else {
+        setSelectedId(t.id)
+        setShowInfo(false)
+      }
+    }
+    const onSlot = (e: Event): void => goto(slotRef.current[(e as CustomEvent<number>).detail])
+    const onAsk = (): void => {
+      const list = askRef.current
+      if (list.length === 0) return
+      askCursor.current %= list.length
+      goto(list[askCursor.current])
+      askCursor.current++
+    }
+    // terminals forward these shortcuts via events (xterm owns their
+    // keyboard); this keydown covers presses everywhere else
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (!e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return
+      const digit = /^Digit([1-9])$/.exec(e.code)
+      if (digit) {
+        e.preventDefault()
+        goto(slotRef.current[Number(digit[1]) - 1])
+      } else if (e.code === 'Backquote') {
+        e.preventDefault()
+        onAsk()
+      }
+    }
+    window.addEventListener('kamino:focus-slot', onSlot)
+    window.addEventListener('kamino:next-ask', onAsk)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('kamino:focus-slot', onSlot)
+      window.removeEventListener('kamino:next-ask', onAsk)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [])
 
   const selectedInstance = useMemo(
     () => snap.instances.find((i) => i.sessionId === selectedId) ?? null,
@@ -304,6 +382,35 @@ export default function App(): React.JSX.Element {
         <button className="btn primary new-btn" onClick={() => setShowLaunch(true)}>
           + Commission clone
         </button>
+        <div className="topbar-menu">
+          <button
+            className={`btn menu-btn${menuOpen ? ' active' : ''}`}
+            title="Fleet actions"
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            ⋯
+          </button>
+          {menuOpen && (
+            <>
+              {/* invisible backdrop: any outside click closes the menu */}
+              <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
+              <div className="menu-panel">
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setShowWrapup(true)
+                  }}
+                >
+                  <span className="menu-item-title">🧹 End-of-shift sweep</span>
+                  <span className="menu-item-sub">
+                    check every repo is committed, pushed &amp; on a PR before you close out
+                  </span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         <div className="topbar-clock">
           {new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
@@ -343,18 +450,17 @@ export default function App(): React.JSX.Element {
               <div className="jedi-quote">{jediQuote()}</div>
             </div>
           )}
-          {snap.instances
-            .filter((i) => i.state !== 'dead') // ended sessions live in Resume, not the wall
-            // grid slots must be STABLE while you type — the store sorts by
-            // state for the roster, but here we order by launch time, which
-            // never changes, so a pane keeps its slot for its whole life
-            .sort((a, b) => a.startedAt - b.startedAt || a.sessionId.localeCompare(b.sessionId))
-            .map((inst) => (
+          {/* gridInstances keeps slots STABLE while you type — the store
+              sorts by state for the roster, but the wall orders by launch
+              time, which never changes, so a pane keeps its slot (and its
+              Ctrl+n number) for its whole life */}
+          {gridInstances.map((inst, ix) => (
               <GridPane
                 key={inst.sessionId}
                 instance={inst}
                 ptyId={ptyByPid.get(inst.pid)?.ptyId ?? null}
                 now={now}
+                slot={ix}
                 adoptPending={inst.sessionId in pendingAdopt}
                 prStatus={prStatus}
                 onAdopt={() => setPendingAdopt((m) => ({ ...m, [inst.sessionId]: { cwd: inst.cwd } }))}
@@ -367,12 +473,13 @@ export default function App(): React.JSX.Element {
             ))}
           {/* freshly commissioned clones append at the end — when one binds
               to a session its startedAt is newest, so it stays in that slot */}
-          {startingPtys.map((p) => (
+          {startingPtys.map((p, ix) => (
             <GridPane
               key={p.ptyId}
               instance={null}
               ptyId={p.ptyId}
               now={now}
+              slot={gridInstances.length + ix}
               adoptPending={false}
               onAdopt={() => {}}
               onFocus={() => {
@@ -580,6 +687,7 @@ export default function App(): React.JSX.Element {
       )}
 
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
+      {showWrapup && <WrapupDialog onClose={() => setShowWrapup(false)} />}
     </div>
   )
 }

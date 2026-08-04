@@ -17,6 +17,8 @@ import {
   SESSIONS_DIR,
   describeAssistant,
   describePendingAsk,
+  extractPickerAnswers,
+  extractToolResultIds,
   extractUserPrompt,
   isPidAlive,
   readSessionRegistry,
@@ -100,6 +102,9 @@ export class InstanceStore extends EventEmitter {
   setNeedsYou(sessionId: string, reason: string): void {
     const t = this.tracked.get(sessionId)
     if (!t || t.instance.state === 'dead') return
+    // The hook fires instantly but the transcript watch polls at 700ms —
+    // catch up first or the ask is derived from the PREVIOUS tool.
+    t.tailer?.poke()
     t.instance.state = 'needs-you'
     // The hook message is often just "Claude is waiting for your input" —
     // pull the actual ask (question, command, plan) from the transcript.
@@ -268,15 +273,32 @@ export class InstanceStore extends EventEmitter {
           // turn ended
           inst.now.turnStartedAt = undefined
           t.lastToolUse = null
-          if (inst.state === 'busy' && t.caughtUp) inst.state = 'idle'
+          if ((inst.state === 'busy' || inst.state === 'needs-you') && t.caughtUp) {
+            inst.state = 'idle'
+            inst.now.pendingAsk = undefined
+          }
           if (inst.now.title) inst.now.activity = `Done: ${inst.now.title}`
         }
         return
       case 'user': {
         if (rec.isSidechain) return
-        // a tool result arriving means the pending tool ran — it's no longer
-        // what a permission prompt could be blocked on
-        if (rec.toolUseResult) t.lastToolUse = null
+        if (rec.toolUseResult) {
+          // Answering a question picker / permission prompt fires NO hook —
+          // the tool_result landing is the only "user responded" signal, so
+          // without this the pane stays AWAITING ORDERS on a stale ask.
+          const ids = extractToolResultIds(rec)
+          const blockedResolved = !t.lastToolUse?.id || ids.length === 0 || ids.includes(t.lastToolUse.id)
+          if (blockedResolved) {
+            t.lastToolUse = null
+            if (t.caughtUp && inst.state === 'needs-you') {
+              inst.state = 'busy'
+              inst.now.pendingAsk = undefined
+              inst.now.activity = 'Thinking…'
+            }
+          }
+          const answers = extractPickerAnswers(rec)
+          if (answers) inst.recent.lastPrompt = answers
+        }
         const prompt = extractUserPrompt(rec)
         if (prompt) {
           inst.recent.lastPrompt = prompt
@@ -298,7 +320,7 @@ export class InstanceStore extends EventEmitter {
         const content = rec.message?.content
         if (Array.isArray(content)) {
           for (const blk of content) {
-            if (blk?.type === 'tool_use' && blk.name) t.lastToolUse = { name: blk.name, input: blk.input }
+            if (blk?.type === 'tool_use' && blk.name) t.lastToolUse = { id: blk.id, name: blk.name, input: blk.input }
           }
         }
         const d = describeAssistant(rec)

@@ -200,6 +200,65 @@ body {
 .topbar-spacer {
   flex: 1;
 }
+
+/* ── Top-right actions menu ───────────────────────────────────────────── */
+.topbar-menu {
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+.menu-btn {
+  font-size: 15px;
+  line-height: 1;
+  padding: 5px 9px;
+  letter-spacing: 0.1em;
+}
+.menu-btn.active {
+  background: var(--bg3);
+}
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+}
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  min-width: 280px;
+  background: var(--bg1);
+  border: 1px solid var(--line-bright);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.menu-item:hover {
+  background: var(--bg2);
+}
+.menu-item-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.menu-item-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
 .topbar-clock {
   font-family: var(--mono);
   font-size: 11px;
@@ -858,6 +917,30 @@ body {
 .pane[data-state='busy'] {
   border-color: var(--line-bright);
 }
+/* the pane that owns the keyboard — xterm's textarea sits inside, so
+   :focus-within lights up exactly one pane while you type */
+.pane:focus-within {
+  border-color: var(--clay);
+  box-shadow: 0 0 0 1px var(--clay);
+}
+
+.pane-slot {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--faint);
+  border: 1px solid var(--line-bright);
+  border-radius: 4px;
+  padding: 0 4px;
+  line-height: 14px;
+  margin-left: 6px;
+  flex-shrink: 0;
+  cursor: help;
+}
+.pane:focus-within .pane-slot {
+  color: var(--clay);
+  border-color: var(--clay);
+}
 
 .pane-strip {
   display: flex;
@@ -1253,6 +1336,107 @@ body {
 .modal-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+/* ── Wrap-up sweep ────────────────────────────────────────────────────── */
+.modal.wrapup {
+  width: min(720px, 94vw);
+}
+.wrapup-verdict {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 12px;
+  border-radius: 7px;
+  margin-bottom: 12px;
+}
+.wrapup-verdict.ok {
+  color: var(--sage);
+  background: rgba(95, 184, 138, 0.1);
+}
+.wrapup-verdict.warn {
+  color: var(--coral);
+  background: rgba(255, 93, 93, 0.09);
+}
+.wrapup-verdict.pending {
+  color: var(--muted);
+  background: var(--bg2);
+}
+.wrapup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wrapup-row {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 8px 12px;
+  background: var(--bg0);
+}
+.wrapup-row.bad {
+  border-color: rgba(255, 93, 93, 0.45);
+}
+.wrapup-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.wrapup-glyph {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--sage);
+  flex-shrink: 0;
+}
+.wrapup-row.bad .wrapup-glyph {
+  color: var(--coral);
+}
+.wrapup-repo {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.wrapup-branch {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--violet);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wrapup-clones {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+  flex-shrink: 0;
+}
+.wrapup-issues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.wrapup-issue {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--coral);
+  border: 1px solid rgba(255, 93, 93, 0.35);
+  border-radius: 5px;
+  padding: 1px 7px;
+}
+.wrapup-issue.soft {
+  color: var(--amber);
+  border-color: rgba(229, 168, 59, 0.35);
+}
+.wrapup-hint {
+  font-size: 11px;
+  color: var(--faint);
+  margin-right: auto;
+  align-self: center;
 }
 
 .sessions-list {

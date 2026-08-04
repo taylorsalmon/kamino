@@ -106,7 +106,17 @@ export interface TranscriptRecord {
     role?: string
     model?: string
     stop_reason?: string | null
-    content?: Array<{ type?: string; text?: string; name?: string; input?: Record<string, unknown> }> | string
+    content?:
+      | Array<{
+          type?: string
+          text?: string
+          name?: string
+          id?: string
+          input?: Record<string, unknown>
+          tool_use_id?: string
+          content?: unknown
+        }>
+      | string
   }
   toolUseResult?: unknown
 }
@@ -184,6 +194,9 @@ export function describeToolUse(name: string, input: Record<string, unknown> | u
  *  Notification hook fires with a generic "waiting for your input", we can say
  *  what it is actually blocked on. */
 export interface PendingToolUse {
+  /** tool_use block id — matched against tool_result ids to know when the
+   *  blocking tool actually resolved */
+  id?: string
   name: string
   input?: Record<string, unknown>
 }
@@ -253,6 +266,42 @@ export function describeAssistant(rec: TranscriptRecord): { activity: string; te
   if (tool) return { activity: tool, text }
   if (text) return { activity: `Replying: ${shorten(text, 60)}`, text }
   return null
+}
+
+/**
+ * Answering an AskUserQuestion picker doesn't write a prompt record — the
+ * choice comes back as a tool_result reading
+ *   Your questions have been answered: "Q"="A" ...
+ * Pull out the answers so the "you" quote line tracks what was last sent.
+ */
+export function extractPickerAnswers(rec: TranscriptRecord): string | null {
+  const content = rec.message?.content
+  if (!Array.isArray(content)) return null
+  for (const blk of content) {
+    if (blk?.type !== 'tool_result') continue
+    const c = blk.content
+    const s =
+      typeof c === 'string'
+        ? c
+        : Array.isArray(c)
+          ? c.map((x) => (x && typeof x === 'object' && 'text' in x ? String((x as { text?: unknown }).text ?? '') : '')).join(' ')
+          : ''
+    if (!s.startsWith('Your questions have been answered:')) continue
+    const answers = [...s.matchAll(/"((?:[^"\\]|\\.)*)"\s*=\s*"((?:[^"\\]|\\.)*)"/g)].map((m) => m[2])
+    if (answers.length) return answers.join(' · ')
+  }
+  return null
+}
+
+/** tool_result ids in a user record — which tool_use calls just resolved. */
+export function extractToolResultIds(rec: TranscriptRecord): string[] {
+  const content = rec.message?.content
+  if (!Array.isArray(content)) return []
+  const ids: string[] = []
+  for (const blk of content) {
+    if (blk?.type === 'tool_result' && typeof blk.tool_use_id === 'string') ids.push(blk.tool_use_id)
+  }
+  return ids
 }
 
 /** Extract the human prompt from a user record (ignore tool results / meta). */

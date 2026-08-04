@@ -127,6 +127,19 @@ function wireClipboard(ptyId: string, term: Terminal, host: HTMLDivElement): voi
       window.dispatchEvent(new Event('kamino:toggle-info'))
       return false
     }
+    // fleet navigation works even while a terminal owns the keyboard:
+    // Ctrl+1..9 jumps to that slot, Ctrl+` to the next clone awaiting orders
+    if (e.type === 'keydown' && e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+      const digit = /^Digit([1-9])$/.exec(e.code)
+      if (digit) {
+        window.dispatchEvent(new CustomEvent('kamino:focus-slot', { detail: Number(digit[1]) - 1 }))
+        return false
+      }
+      if (e.code === 'Backquote') {
+        window.dispatchEvent(new Event('kamino:next-ask'))
+        return false
+      }
+    }
     if (e.type !== 'keydown' || !e.ctrlKey || e.altKey || e.metaKey) return true
     if (e.code === 'KeyC' && (e.shiftKey || term.hasSelection())) {
       if (term.hasSelection()) copySelection()
@@ -191,6 +204,14 @@ export function disposeTerminal(ptyId: string): void {
     e.host.remove()
     registry.delete(ptyId)
   }
+}
+
+/** give a pane's terminal the keyboard and bring it into view */
+export function focusTerminal(ptyId: string): void {
+  const e = registry.get(ptyId)
+  if (!e) return
+  e.term.focus()
+  e.host.scrollIntoView({ block: 'nearest' })
 }
 
 /** grid density: smaller glyphs fit more clones per screen. Applies to every
