@@ -37,6 +37,12 @@ export class TranscriptTailer {
     this.watcher = null
   }
 
+  /** Synchronous catch-up read. Hooks arrive instantly while the file watch
+   *  polls at 700ms — call this before deriving state from tailed data. */
+  poke(): void {
+    this.readNew()
+  }
+
   private readNew(): void {
     if (this.reading) {
       this.pendingRead = true
