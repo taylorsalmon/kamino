@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { FleetSnapshot, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 const api = {
@@ -68,6 +68,8 @@ const api = {
   },
 
   // misc
+  /** real filesystem path of a dragged-in File (File.path died in Electron 32) */
+  pathForFile: (file: File): string => webUtils.getPathForFile(file),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open:external', url),
   openPath: (p: string): Promise<void> => ipcRenderer.invoke('open:path', p),
   openVsCode: (p: string): Promise<void> => ipcRenderer.invoke('open:vscode', p),

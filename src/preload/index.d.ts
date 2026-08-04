@@ -26,6 +26,7 @@ declare global {
       hooksInstall: () => Promise<{ installed: string[]; settingsPath: string }>
       reportSelected: (sessionId: string | null) => void
       onSelectSession: (cb: (sessionId: string) => void) => () => void
+      pathForFile: (file: File) => string
       openExternal: (url: string) => Promise<void>
       openPath: (p: string) => Promise<void>
       openVsCode: (p: string) => Promise<void>
