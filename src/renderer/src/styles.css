@@ -275,6 +275,23 @@ body {
   background: var(--bg3);
 }
 
+.wrapup-send {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 3px 8px;
+}
+.wrapup-send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.wrapup-sent {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--sage);
+  white-space: nowrap;
+}
+
 .feed-panel {
   width: 280px;
   flex-shrink: 0;

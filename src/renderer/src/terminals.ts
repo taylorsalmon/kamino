@@ -147,6 +147,9 @@ function wireClipboard(ptyId: string, term: Terminal, host: HTMLDivElement): voi
       return false
     }
     if (e.code === 'KeyV') {
+      // preventDefault, or the browser ALSO delivers a native paste event to
+      // xterm's textarea and the clipboard lands twice
+      e.preventDefault()
       pasteText(e.shiftKey ? undefined : '\x16')
       return false
     }

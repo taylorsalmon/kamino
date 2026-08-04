@@ -13,9 +13,29 @@ function issues(r: WrapupRepo): string[] {
   return out
 }
 
-export function WrapupDialog(props: { onClose: () => void }): React.JSX.Element {
+/** the orders a clone gets when you hit "wrap up" — one line so it lands in
+ *  the CLI composer as a single prompt (queued if the clone is mid-turn) */
+const WRAPUP_ORDER =
+  'End-of-shift wrap-up: commit all outstanding work in this repo with clear messages, push the branch, ' +
+  'and open a PR (or update the existing one) describing where the work is up to. Get it to a state that ' +
+  'could be merged to main — fix failing checks or lint if quick. Anything unfinished or known-broken goes ' +
+  'in a Follow-ups section of the PR description (or as issues) so nothing is lost. Reply with the PR URL when done.'
+
+/** an embedded clone Kamino can type into, working in this repo */
+export interface WrapupTarget {
+  ptyId: string
+  name: string
+}
+
+export function WrapupDialog(props: {
+  onClose: () => void
+  /** repo cwd → dispatchable clone, or null (external/background clone) */
+  resolveTarget: (repo: WrapupRepo) => WrapupTarget | null
+}): React.JSX.Element {
   const [report, setReport] = useState<WrapupReport | null>(null)
   const [busy, setBusy] = useState(false)
+  /** cwd → clone name the orders went to */
+  const [sent, setSent] = useState<Record<string, string>>({})
 
   const sweep = useCallback(() => {
     setBusy(true)
@@ -37,6 +57,14 @@ export function WrapupDialog(props: { onClose: () => void }): React.JSX.Element 
   const rows = report?.repos ?? []
   const blocked = rows.filter((r) => issues(r).length > 0)
   const allClear = report && blocked.length === 0
+  const dispatchable = blocked.filter((r) => !sent[r.cwd] && props.resolveTarget(r))
+
+  function dispatch(r: WrapupRepo): void {
+    const target = props.resolveTarget(r)
+    if (!target) return
+    window.fleet.ptyInput(target.ptyId, WRAPUP_ORDER + '\r')
+    setSent((m) => ({ ...m, [r.cwd]: target.name }))
+  }
 
   return (
     <div className="modal-backdrop" onClick={props.onClose}>
@@ -67,6 +95,7 @@ export function WrapupDialog(props: { onClose: () => void }): React.JSX.Element 
           <div className="wrapup-list">
             {rows.map((r) => {
               const probs = issues(r)
+              const target = props.resolveTarget(r)
               return (
                 <div key={r.cwd} className={`wrapup-row${probs.length ? ' bad' : ''}`}>
                   <div className="wrapup-top">
@@ -87,6 +116,25 @@ export function WrapupDialog(props: { onClose: () => void }): React.JSX.Element 
                     <span className="wrapup-clones" title={r.clones.join(', ')}>
                       {r.clones.join(' · ')}
                     </span>
+                    {probs.length > 0 &&
+                      (sent[r.cwd] ? (
+                        <span className="wrapup-sent" title={`Wrap-up orders sent to ${sent[r.cwd]}`}>
+                          ✓ orders sent
+                        </span>
+                      ) : (
+                        <button
+                          className="btn wrapup-send"
+                          disabled={!target}
+                          title={
+                            target
+                              ? `Tell ${target.name} to commit, push, raise/update the PR, and log follow-ups`
+                              : "This clone runs outside Kamino — can't type into its terminal"
+                          }
+                          onClick={() => dispatch(r)}
+                        >
+                          ⚡ Wrap up
+                        </button>
+                      ))}
                   </div>
                   {probs.length > 0 && (
                     <div className="wrapup-issues">
@@ -116,8 +164,18 @@ export function WrapupDialog(props: { onClose: () => void }): React.JSX.Element 
         </div>
         <div className="modal-body modal-actions">
           <span className="wrapup-hint">
-            Read-only sweep — tell the clone itself to commit/push/raise the PR.
+            ⚡ Wrap up sends the orders straight into the clone&apos;s terminal — commit, push, PR,
+            follow-ups. Sweep again to watch the list go green.
           </span>
+          {dispatchable.length > 1 && (
+            <button
+              className="btn primary"
+              title="Send wrap-up orders to every repo that still has one"
+              onClick={() => dispatchable.forEach(dispatch)}
+            >
+              ⚡ Wrap up all ({dispatchable.length})
+            </button>
+          )}
           <button className="btn" onClick={sweep} disabled={busy}>
             {busy ? 'Sweeping…' : 'Sweep again'}
           </button>
