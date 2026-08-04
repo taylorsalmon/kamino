@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Instance, PrStatusMap } from '../../../shared/types'
-import { elapsed, prBadge, stateWord } from '../format'
+import { elapsed, fmtTokens, prBadge, stateWord } from '../format'
+import { RotBar } from './RotBar'
 
 export function DetailPanel(props: {
   instance: Instance
@@ -180,6 +181,20 @@ export function DetailPanel(props: {
           <dd>{inst.sessionId}</dd>
           <dt>turns</dt>
           <dd>{inst.recent.turns}</dd>
+          <dt>context</dt>
+          <dd>
+            {inst.context ? (
+              <span className="detail-rot">
+                <RotBar context={inst.context} now={now} />
+                <span>
+                  {fmtTokens(inst.context.tokens)} / {fmtTokens(inst.context.window)}
+                  {inst.context.compactions > 0 && ` · ${inst.context.compactions} compaction${inst.context.compactions > 1 ? 's' : ''}`}
+                </span>
+              </span>
+            ) : (
+              '—'
+            )}
+          </dd>
           <dt>model</dt>
           <dd>{inst.model ?? '—'}</dd>
           <dt>permissions</dt>

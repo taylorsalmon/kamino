@@ -115,6 +115,7 @@ export function LaunchDialog(props: {
                 <option value="default">default — ask as needed</option>
                 <option value="plan">plan — read-only until approved</option>
                 <option value="acceptEdits">acceptEdits — edits allowed, asks for commands</option>
+                <option value="bypassPermissions">auto — never asks, full autonomy</option>
               </select>
             </div>
             <div className="modal-actions">

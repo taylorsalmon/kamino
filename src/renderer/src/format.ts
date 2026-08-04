@@ -136,6 +136,28 @@ export function prBadge(st: PrStatus | undefined): PrBadge | null {
   return { glyph, tone, words, title: `PR #${st.number} — ${parts.join(' · ')}` }
 }
 
+// ── Context rot ──────────────────────────────────────────────────────────
+// How full the clone's context window is, told through Clawd's health:
+// fresh = ignorable, rotting = going stale, late = festering (flies),
+// dying = flat out, dead = compaction (forced summary, details lost) imminent.
+
+export type RotStage = 'fresh' | 'rotting' | 'late' | 'dying' | 'dead'
+
+export function rotStage(pct: number): RotStage {
+  if (pct >= 0.95) return 'dead'
+  if (pct >= 0.8) return 'dying'
+  if (pct >= 0.68) return 'late'
+  if (pct >= 0.5) return 'rotting'
+  return 'fresh'
+}
+
+/** 61982 → "62k", 1000298 → "1.0M" */
+export function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`
+  return String(n)
+}
+
 export const KIND_WORD: Record<string, string> = {
   embedded: 'in bay',
   external: 'field-deployed',

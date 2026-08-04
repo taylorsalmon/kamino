@@ -61,6 +61,24 @@ export interface InstanceNow {
   queued: string[]
 }
 
+/**
+ * Context rot — how full the clone's context window is. Tokens come from the
+ * latest assistant usage record; the window size is an estimate ratcheted up
+ * (200k → 1M) when observed tokens prove the window must be the bigger tier.
+ */
+export interface ContextHealth {
+  /** tokens in the window right now (input + cache read + cache creation) */
+  tokens: number
+  /** assumed window size in tokens */
+  window: number
+  /** tokens/window — may briefly exceed 1 right before an auto-compact */
+  pct: number
+  /** compactions so far this session */
+  compactions: number
+  /** ms epoch of the most recent compaction */
+  lastCompactAt?: number
+}
+
 export interface InstanceRecent {
   lastPrompt: string
   lastAssistantText: string
@@ -81,6 +99,7 @@ export interface Instance {
   state: InstanceState
   now: InstanceNow
   recent: InstanceRecent
+  context?: ContextHealth
   startedAt: number
   lastActiveAt: number
   /** cli version, e.g. 2.1.220 */

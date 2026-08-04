@@ -92,6 +92,14 @@ function applyTermBg(): void {
 function wireGlobalListeners(): void {
   if (wired) return
   wired = true
+  // a file dropped outside a terminal must never navigate the window to it
+  // (Chromium's default) — swallow file drags everywhere; terminals opt in below
+  window.addEventListener('dragover', (e) => {
+    if (e.dataTransfer?.types.includes('Files')) e.preventDefault()
+  })
+  window.addEventListener('drop', (e) => {
+    if (e.dataTransfer?.types.includes('Files')) e.preventDefault()
+  })
   window.fleet.onPtyData((ptyId, data) => {
     registry.get(ptyId)?.term.write(data)
   })
@@ -177,6 +185,30 @@ function wireClipboard(ptyId: string, term: Terminal, host: HTMLDivElement): voi
   })
 }
 
+/** Drop files from Explorer onto a terminal → paste their paths (quoted when
+ *  they hold spaces), like Windows Terminal — so Claude Code can pick them up. */
+function wireFileDrop(term: Terminal, host: HTMLDivElement): void {
+  host.addEventListener('dragover', (e) => {
+    if (e.dataTransfer?.types.includes('Files')) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+    }
+  })
+  host.addEventListener('drop', (e) => {
+    const files = e.dataTransfer?.files
+    if (!files?.length) return
+    e.preventDefault()
+    const text = Array.from(files)
+      .map((f) => window.fleet.pathForFile(f))
+      .filter(Boolean)
+      .map((p) => (/\s/.test(p) ? `"${p}"` : p))
+      .join(' ')
+    if (!text) return
+    term.paste(text + ' ')
+    term.focus()
+  })
+}
+
 export function getOrCreateTerminal(ptyId: string): TermEntry {
   wireGlobalListeners()
   let entry = registry.get(ptyId)
@@ -202,6 +234,7 @@ export function getOrCreateTerminal(ptyId: string): TermEntry {
   const host = document.createElement('div')
   host.className = 'term-host'
   wireClipboard(ptyId, term, host)
+  wireFileDrop(term, host)
   term.open(host)
 
   // restore anything emitted before this terminal existed (e.g. app reload)

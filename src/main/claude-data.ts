@@ -103,10 +103,21 @@ export interface TranscriptRecord {
   operation?: string
   permissionMode?: string
   durationMs?: number
+  compactMetadata?: {
+    trigger?: string
+    preTokens?: number
+    postTokens?: number
+  }
   message?: {
     role?: string
     model?: string
     stop_reason?: string | null
+    usage?: {
+      input_tokens?: number
+      cache_creation_input_tokens?: number
+      cache_read_input_tokens?: number
+      output_tokens?: number
+    }
     content?:
       | Array<{
           type?: string
@@ -278,6 +289,95 @@ export function derivePendingAsk(
   const text = t.length > 280 ? '…' + t.slice(-279) : t
   if (/\?[\s"'’”)\]]*$/.test(t)) return { kind: 'reply', text }
   return { kind: 'idle', text }
+}
+
+/**
+ * Context-window occupancy of an assistant record: everything the model had
+ * in front of it for that reply. Zero/absent usage (synthetic records) → null.
+ */
+export function extractContextTokens(rec: TranscriptRecord): number | null {
+  const u = rec.message?.usage
+  if (!u) return null
+  const tokens =
+    (typeof u.input_tokens === 'number' ? u.input_tokens : 0) +
+    (typeof u.cache_creation_input_tokens === 'number' ? u.cache_creation_input_tokens : 0) +
+    (typeof u.cache_read_input_tokens === 'number' ? u.cache_read_input_tokens : 0)
+  return tokens > 0 ? tokens : null
+}
+
+/**
+ * Mine recent transcript tails for context-window evidence: the biggest
+ * context each model has been seen holding (usage lines + compact-boundary
+ * preTokens). Context grows monotonically within a session, so a file's tail
+ * carries its high-water mark. Bounded: newest `maxFiles` transcripts within
+ * `maxAgeMs`, last 128 KiB of each.
+ */
+export async function scanWindowEvidence(
+  maxAgeMs: number,
+  maxFiles = 300
+): Promise<Record<string, number>> {
+  const cutoff = Date.now() - maxAgeMs
+  const candidates: Array<{ path: string; mtimeMs: number; size: number }> = []
+  let dirs: string[]
+  try {
+    dirs = await fs.promises.readdir(PROJECTS_DIR)
+  } catch {
+    return {}
+  }
+  for (const dir of dirs) {
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(path.join(PROJECTS_DIR, dir), { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const e of entries) {
+      if (!e.isFile() || !e.name.endsWith('.jsonl')) continue
+      const p = path.join(PROJECTS_DIR, dir, e.name)
+      try {
+        const st = await fs.promises.stat(p)
+        if (st.mtimeMs >= cutoff && st.size > 0) {
+          candidates.push({ path: p, mtimeMs: st.mtimeMs, size: st.size })
+        }
+      } catch {
+        /* vanished mid-scan */
+      }
+    }
+  }
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  const best: Record<string, number> = {}
+  for (const c of candidates.slice(0, maxFiles)) {
+    let text: string
+    const len = Math.min(131_072, c.size)
+    try {
+      const fh = await fs.promises.open(c.path, 'r')
+      try {
+        const buf = Buffer.alloc(len)
+        await fh.read(buf, 0, len, c.size - len)
+        text = buf.toString('utf-8')
+      } finally {
+        await fh.close()
+      }
+    } catch {
+      continue
+    }
+    const lines = text.split('\n')
+    if (len < c.size) lines.shift() // torn first line
+    let model = ''
+    for (const line of lines) {
+      const rec = parseRecord(line)
+      if (!rec) continue
+      const m = rec.message?.model
+      if (m && m.startsWith('claude')) model = m // filters '<synthetic>'
+      let tokens = extractContextTokens(rec) ?? 0
+      const pre = rec.compactMetadata?.preTokens
+      if (rec.subtype === 'compact_boundary' && typeof pre === 'number') {
+        tokens = Math.max(tokens, pre)
+      }
+      if (tokens > 0 && model) best[model] = Math.max(best[model] ?? 0, tokens)
+    }
+  }
+  return best
 }
 
 /** Extract text/tool info from an assistant record. */
