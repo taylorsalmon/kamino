@@ -24,6 +24,16 @@ export const STATE_WORD: Record<string, string> = {
   dead: 'DECOMMISSIONED'
 }
 
+/** needs-you refined by WHY it needs you — the triage signal. */
+export function stateWord(state: string, askKind?: string): string {
+  if (state === 'needs-you') {
+    if (askKind === 'question') return 'ANSWER NEEDED'
+    if (askKind === 'plan') return 'PLAN READY'
+    if (askKind === 'permission') return 'APPROVE?'
+  }
+  return STATE_WORD[state] ?? state
+}
+
 /** Rotating flavor lines for empty states and dialogs — never for errors or
  *  anything the user needs to parse under pressure. */
 const JEDI_QUOTES = [

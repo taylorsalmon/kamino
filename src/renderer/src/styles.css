@@ -924,6 +924,30 @@ body {
   box-shadow: 0 0 0 1px var(--clay);
 }
 
+.pane-grip {
+  cursor: grab;
+  color: var(--faint);
+  font-size: 12px;
+  padding-left: 6px;
+  margin-right: -4px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.pane-grip:hover {
+  color: var(--text);
+}
+.pane-grip:active {
+  cursor: grabbing;
+}
+.pane.drag-over {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 1px var(--violet);
+}
+.pane-chip.size-btn.on {
+  color: var(--clay);
+  border-color: var(--clay-dim);
+}
+
 .pane-slot {
   font-family: var(--mono);
   font-size: 9.5px;
@@ -1121,13 +1145,42 @@ body {
   right: 8px;
   z-index: 5;
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  flex-direction: column;
+  gap: 5px;
   padding: 6px 8px;
   background: color-mix(in srgb, var(--coral) 16%, var(--bg1));
   border: 1px solid var(--coral);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.pane-ask-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.pane-ask-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pane-ask-btn {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text);
+  background: var(--bg1);
+  border: 1px solid var(--coral);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pane-ask-btn:hover {
+  background: var(--coral);
+  color: var(--bg0);
 }
 .pane-ask-label {
   font-family: var(--mono);

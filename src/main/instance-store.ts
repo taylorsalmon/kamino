@@ -16,7 +16,7 @@ import {
   CLAUDE_DIR,
   SESSIONS_DIR,
   describeAssistant,
-  describePendingAsk,
+  derivePendingAsk,
   extractPickerAnswers,
   extractToolResultIds,
   extractUserPrompt,
@@ -28,7 +28,7 @@ import {
   type TranscriptRecord
 } from './claude-data'
 import { TranscriptTailer } from './transcript-tailer'
-import type { FleetSnapshot, Instance, InstanceState } from '../shared/types'
+import type { FleetSnapshot, Instance, InstanceState, PendingAskKind } from '../shared/types'
 
 const DEAD_RETENTION_MS = 24 * 60 * 60 * 1000
 
@@ -98,20 +98,36 @@ export class InstanceStore extends EventEmitter {
     return { instances, updatedAt: Date.now() }
   }
 
-  /** Mark a session as waiting on the user (from the Notification hook). */
-  setNeedsYou(sessionId: string, reason: string): void {
+  /**
+   * Mark a session as waiting on the user (from the Notification hook).
+   * Returns the ask kind, or null when it's just the idle nag — callers use
+   * that to decide whether a toast is warranted.
+   */
+  setNeedsYou(sessionId: string, reason: string): PendingAskKind | null {
     const t = this.tracked.get(sessionId)
-    if (!t || t.instance.state === 'dead') return
+    if (!t || t.instance.state === 'dead') return null
     // The hook fires instantly but the transcript watch polls at 700ms —
     // catch up first or the ask is derived from the PREVIOUS tool.
     t.tailer?.poke()
-    t.instance.state = 'needs-you'
+    const inst = t.instance
     // The hook message is often just "Claude is waiting for your input" —
-    // pull the actual ask (question, command, plan) from the transcript.
-    const ask = describePendingAsk(t.lastToolUse, t.instance.recent.lastAssistantText)
-    t.instance.now.pendingAsk = ask || undefined
-    t.instance.now.activity = `Waiting: ${ask || reason}`
+    // classify + describe the actual ask (question, command, plan) from the
+    // transcript.
+    const ask = derivePendingAsk(t.lastToolUse, inst.recent.lastAssistantText, reason)
+    if (ask.kind === 'idle') {
+      // nothing actually blocks on the user — keep the board calm
+      if (inst.state === 'needs-you') inst.state = 'idle'
+      this.clearAsk(inst)
+      this.queueBroadcast()
+      return null
+    }
+    inst.state = 'needs-you'
+    inst.now.pendingAsk = ask.text || undefined
+    inst.now.askKind = ask.kind
+    inst.now.pendingOptions = ask.options
+    inst.now.activity = `Waiting: ${ask.text || reason}`
     this.queueBroadcast()
+    return ask.kind
   }
 
   /** The user responded (prompt submitted) or the turn ended — stop flagging. */
@@ -119,9 +135,15 @@ export class InstanceStore extends EventEmitter {
     const t = this.tracked.get(sessionId)
     if (!t || t.instance.state !== 'needs-you') return
     t.instance.state = nextState
-    t.instance.now.pendingAsk = undefined
+    this.clearAsk(t.instance)
     if (nextState === 'busy') t.instance.now.activity = 'Thinking…'
     this.queueBroadcast()
+  }
+
+  private clearAsk(inst: Instance): void {
+    inst.now.pendingAsk = undefined
+    inst.now.askKind = undefined
+    inst.now.pendingOptions = undefined
   }
 
   get(sessionId: string): Instance | null {
@@ -275,7 +297,7 @@ export class InstanceStore extends EventEmitter {
           t.lastToolUse = null
           if ((inst.state === 'busy' || inst.state === 'needs-you') && t.caughtUp) {
             inst.state = 'idle'
-            inst.now.pendingAsk = undefined
+            this.clearAsk(inst)
           }
           if (inst.now.title) inst.now.activity = `Done: ${inst.now.title}`
         }
@@ -292,7 +314,7 @@ export class InstanceStore extends EventEmitter {
             t.lastToolUse = null
             if (t.caughtUp && inst.state === 'needs-you') {
               inst.state = 'busy'
-              inst.now.pendingAsk = undefined
+              this.clearAsk(inst)
               inst.now.activity = 'Thinking…'
             }
           }
@@ -302,7 +324,7 @@ export class InstanceStore extends EventEmitter {
         const prompt = extractUserPrompt(rec)
         if (prompt) {
           inst.recent.lastPrompt = prompt
-          inst.now.pendingAsk = undefined
+          this.clearAsk(inst)
           inst.recent.turns += 1
           inst.now.queued = inst.now.queued.filter((q) => q !== prompt)
           inst.now.turnStartedAt = rec.timestamp ? Date.parse(rec.timestamp) : Date.now()

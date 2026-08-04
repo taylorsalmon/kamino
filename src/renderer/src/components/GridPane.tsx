@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Instance, PrStatusMap } from '../../../shared/types'
-import { agoShort, elapsed, prBadge, STATE_WORD } from '../format'
+import { agoShort, elapsed, prBadge, stateWord } from '../format'
 import { TerminalView } from './TerminalView'
 import { DetailPanel } from './DetailPanel'
 
@@ -10,11 +10,18 @@ import { DetailPanel } from './DetailPanel'
  * instances Fleet doesn't host).
  */
 export function GridPane(props: {
+  /** stable wall identity — sessionId (or ptyId while starting) */
+  paneId: string
   instance: Instance | null
   ptyId: string | null
   now: number
   /** position on the wall — slots 0-8 get a Ctrl+n jump badge */
   slot?: number
+  /** span in grid tracks (1 or 2 per axis) — fixed steps, never pixels */
+  size?: { w: 1 | 2; h: 1 | 2 }
+  onToggleSize?: (axis: 'w' | 'h') => void
+  /** another pane's grip was dropped here — it takes this slot */
+  onDropPane?: (srcPaneId: string) => void
   adoptPending: boolean
   prStatus?: PrStatusMap
   onAdopt: () => void
@@ -24,6 +31,8 @@ export function GridPane(props: {
   const state = inst?.state ?? 'busy'
   // per-pane flip between the live terminal and the intel/detail view
   const [showIntel, setShowIntel] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const size = props.size ?? { w: 1, h: 1 }
   // needs-you banner dismissal — comes back if a NEW ask appears
   const [askDismissed, setAskDismissed] = useState(false)
   const pendingAsk = state === 'needs-you' ? inst?.now.pendingAsk : undefined
@@ -36,9 +45,39 @@ export function GridPane(props: {
     : ''
 
   return (
-    <div className="pane" data-state={state}>
+    <div
+      className={`pane${dragOver ? ' drag-over' : ''}`}
+      data-state={state}
+      style={{
+        gridColumn: size.w === 2 ? 'span 2' : undefined,
+        gridRow: size.h === 2 ? 'span 2' : undefined
+      }}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('application/x-kamino-pane')) {
+          e.preventDefault()
+          setDragOver(true)
+        }
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        setDragOver(false)
+        const src = e.dataTransfer.getData('application/x-kamino-pane')
+        if (src) props.onDropPane?.(src)
+      }}
+    >
       <div className="pane-strip" data-state={state}>
         <span className="pane-rail" />
+        <span
+          className="pane-grip"
+          title="Drag to another pane to swap slots"
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData('application/x-kamino-pane', props.paneId)
+            e.dataTransfer.effectAllowed = 'move'
+          }}
+        >
+          ⠿
+        </span>
         {props.slot != null && props.slot < 9 && (
           <span className="pane-slot" title={`Ctrl+${props.slot + 1} puts your keyboard here`}>
             {props.slot + 1}
@@ -46,7 +85,7 @@ export function GridPane(props: {
         )}
         <span className="pane-name">{inst?.name ?? 'growing…'}</span>
         <span className="state-word" data-state={state}>
-          {inst ? STATE_WORD[inst.state] : 'CLONING'}
+          {inst ? stateWord(inst.state, inst.now.askKind) : 'CLONING'}
         </span>
         <span className="pane-activity" title={inst?.now.activity}>
           <span className="caret">▸</span>
@@ -89,6 +128,20 @@ export function GridPane(props: {
               {showIntel ? '⌨' : '✦'}
             </button>
           )}
+          <button
+            className={`pane-chip size-btn${size.w === 2 ? ' on' : ''}`}
+            title={size.w === 2 ? 'Back to single width' : 'Widen — span two columns'}
+            onClick={() => props.onToggleSize?.('w')}
+          >
+            ⬌
+          </button>
+          <button
+            className={`pane-chip size-btn${size.h === 2 ? ' on' : ''}`}
+            title={size.h === 2 ? 'Back to single height' : 'Stretch — span two rows'}
+            onClick={() => props.onToggleSize?.('h')}
+          >
+            ⬍
+          </button>
           <button className="pane-chip focus-btn" title="Open in focus view" onClick={props.onFocus}>
             ⤢
           </button>
@@ -136,13 +189,50 @@ export function GridPane(props: {
       <div className="pane-body">
         {/* overlay, not a row — pane height must not change or ConPTY redraws
             mangle the composer mid-typing */}
-        {pendingAsk && !askDismissed && !showIntel && (
+        {pendingAsk && !askDismissed && !showIntel && inst && (
           <div className="pane-ask" title={pendingAsk}>
-            <span className="pane-ask-label">NEEDS YOU</span>
-            <span className="pane-ask-text">{pendingAsk}</span>
-            <button className="pane-ask-close" title="Dismiss" onClick={() => setAskDismissed(true)}>
-              ✕
-            </button>
+            <div className="pane-ask-top">
+              <span className="pane-ask-label">{stateWord('needs-you', inst.now.askKind)}</span>
+              <span className="pane-ask-text">{pendingAsk}</span>
+              <button className="pane-ask-close" title="Dismiss" onClick={() => setAskDismissed(true)}>
+                ✕
+              </button>
+            </div>
+            {/* one-click answers — keystrokes straight into the pty, no
+                focusing, no typing */}
+            {ptyId && (
+              <div className="pane-ask-actions">
+                {inst.now.askKind === 'question' &&
+                  inst.now.pendingOptions?.slice(0, 9).map((label, i) => (
+                    <button
+                      key={i}
+                      className="pane-ask-btn"
+                      title={`Answer: ${label}`}
+                      onClick={() => window.fleet.ptyInput(ptyId, String(i + 1))}
+                    >
+                      {i + 1} · {label}
+                    </button>
+                  ))}
+                {(inst.now.askKind === 'permission' || inst.now.askKind === 'plan') && (
+                  <button
+                    className="pane-ask-btn"
+                    title="Selects option 1 (yes) in the prompt"
+                    onClick={() => window.fleet.ptyInput(ptyId, '1')}
+                  >
+                    ✓ Approve
+                  </button>
+                )}
+                {inst.now.askKind === 'reply' && (
+                  <button
+                    className="pane-ask-btn"
+                    title="Sends: Proceed with your best judgment."
+                    onClick={() => window.fleet.ptyInput(ptyId, 'Proceed with your best judgment.\r')}
+                  >
+                    ⚡ Proceed on your judgment
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
         {ptyId && !(showIntel && inst) ? (

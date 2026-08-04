@@ -1,5 +1,5 @@
 import type { Instance, PrStatusMap } from '../../../shared/types'
-import { agoShort, elapsed, KIND_WORD, prBadge, STATE_WORD } from '../format'
+import { agoShort, elapsed, KIND_WORD, prBadge, stateWord } from '../format'
 
 export function InstanceCard(props: {
   instance: Instance
@@ -26,7 +26,7 @@ export function InstanceCard(props: {
         <span className="card-top">
           <span className="card-name">{inst.name}</span>
           <span className="state-word" data-state={inst.state}>
-            {STATE_WORD[inst.state]}
+            {stateWord(inst.state, inst.now.askKind)}
           </span>
           <span className="card-elapsed">{rightTime}</span>
         </span>

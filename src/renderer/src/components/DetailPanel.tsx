@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Instance, PrStatusMap } from '../../../shared/types'
-import { elapsed, prBadge, STATE_WORD } from '../format'
+import { elapsed, prBadge, stateWord } from '../format'
 
 export function DetailPanel(props: {
   instance: Instance
@@ -39,7 +39,7 @@ export function DetailPanel(props: {
       <div className="detail-head">
         <span className="detail-name">{inst.name}</span>
         <span className="state-pill" data-state={inst.state}>
-          {STATE_WORD[inst.state]}
+          {stateWord(inst.state, inst.now.askKind)}
         </span>
         {inst.state === 'busy' && inst.now.turnStartedAt && (
           <span className="topbar-clock">turn running {elapsed(inst.now.turnStartedAt, now)}</span>

@@ -57,9 +57,11 @@ function onHook(ev: HookEvent): void {
   switch (ev.kind) {
     case 'notification': {
       const reason = ev.message || 'needs your input'
-      store.setNeedsYou(ev.sessionId, reason)
-      if (shouldToast(ev.sessionId)) {
-        notify(`${inst?.name ?? 'Clone'} awaits orders`, reason, ev.sessionId)
+      const kind = store.setNeedsYou(ev.sessionId, reason)
+      // kind === null → just the idle nag; no toast, board stays calm
+      if (kind && shouldToast(ev.sessionId)) {
+        const ask = store.get(ev.sessionId)?.now.pendingAsk
+        notify(`${inst?.name ?? 'Clone'} awaits orders`, ask || reason, ev.sessionId)
       }
       break
     }

@@ -4,6 +4,13 @@ export type InstanceKind = 'embedded' | 'external' | 'background' | 'dead'
 
 export type InstanceState = 'busy' | 'needs-you' | 'idle' | 'dead'
 
+/**
+ * Why a clone is waiting. 'question'/'plan'/'permission' block on a real
+ * choice; 'reply' means its last message ended in a question; 'idle' is just
+ * the CLI's idle nag — nothing actually needs the user.
+ */
+export type PendingAskKind = 'question' | 'plan' | 'permission' | 'reply' | 'idle'
+
 export interface PrLink {
   number: number
   url: string
@@ -42,6 +49,10 @@ export interface InstanceNow {
    * the plan headline, or its last reply's closing question.
    */
   pendingAsk?: string
+  /** what kind of ask — drives the state word and one-click actions */
+  askKind?: PendingAskKind
+  /** option labels for one-click answering (single, single-select question) */
+  pendingOptions?: string[]
   /** ms since the current turn started (only while busy) */
   turnStartedAt?: number
   /** Prompts queued behind the current turn */
