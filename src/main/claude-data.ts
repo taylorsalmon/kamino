@@ -9,6 +9,7 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import type { PendingAskKind } from '../shared/types'
 
 export const CLAUDE_DIR = path.join(os.homedir(), '.claude')
 export const SESSIONS_DIR = path.join(CLAUDE_DIR, 'sessions')
@@ -201,13 +202,26 @@ export interface PendingToolUse {
   input?: Record<string, unknown>
 }
 
+export interface PendingAsk {
+  kind: PendingAskKind
+  text: string
+  /** option labels for one-click answering — only when there is exactly one
+   *  single-select question, so digit keys map 1:1 onto the picker */
+  options?: string[]
+}
+
 /**
- * Full-detail line for the needs-you banner. Unlike describeToolUse (a status
- * verb), this is the content of the ask itself: question + options, the exact
- * command, the plan headline. Falls back to the tail of the last reply, which
- * is where a plain "should I do X or Y?" ends up.
+ * Classify + describe what a waiting clone is blocked on. Unlike
+ * describeToolUse (a status verb), this is the content of the ask itself:
+ * question + options, the exact command, the plan headline. With no blocked
+ * tool it falls back to the tail of the last reply — 'reply' if that ends in
+ * a question, else 'idle' (the CLI's nag; nothing actually needs the user).
  */
-export function describePendingAsk(tool: PendingToolUse | null, lastAssistantText: string): string {
+export function derivePendingAsk(
+  tool: PendingToolUse | null,
+  lastAssistantText: string,
+  reason: string
+): PendingAsk {
   if (tool) {
     const i = tool.input ?? {}
     switch (tool.name) {
@@ -225,31 +239,45 @@ export function describePendingAsk(tool: PendingToolUse | null, lastAssistantTex
             return question ? (opts ? `${question} [${opts}]` : question) : ''
           })
           .filter(Boolean)
-        if (parts.length) return parts.join('  ·  ')
-        return 'Answer its question'
+        const first = qs[0]
+        const labels =
+          qs.length === 1 && first && first.multiSelect !== true && Array.isArray(first.options)
+            ? (first.options as Array<Record<string, unknown>>)
+                .map((o) => (typeof o?.label === 'string' ? o.label : ''))
+                .filter(Boolean)
+            : []
+        return {
+          kind: 'question',
+          text: parts.length ? parts.join('  ·  ') : 'Answer its question',
+          options: labels.length ? labels : undefined
+        }
       }
       case 'ExitPlanMode': {
         const plan = typeof i.plan === 'string' ? i.plan : ''
-        return plan ? `Approve plan: ${shorten(plan, 240)}` : 'Approve its plan'
+        return { kind: 'plan', text: plan ? `Approve plan: ${shorten(plan, 240)}` : 'Approve its plan' }
       }
       case 'Bash':
       case 'PowerShell': {
         const cmd = String(i.command ?? i.description ?? '')
-        return cmd ? `Approve command: ${shorten(cmd, 240)}` : 'Approve a shell command'
+        return { kind: 'permission', text: cmd ? `Approve command: ${shorten(cmd, 240)}` : 'Approve a shell command' }
       }
       case 'Edit':
       case 'Write':
       case 'NotebookEdit':
-        return `Approve edit to ${lastSegment(i.file_path) || 'a file'}`
+        return { kind: 'permission', text: `Approve edit to ${lastSegment(i.file_path) || 'a file'}` }
       default:
-        return `Approve ${tool.name}`
+        return { kind: 'permission', text: `Approve ${tool.name}` }
     }
   }
+  // Permission notification but the tool_use hasn't hit the transcript yet —
+  // trust the hook message over the text fallback.
+  if (/permission/i.test(reason)) return { kind: 'permission', text: reason }
   // No blocked tool — it ended its turn talking to you. The ask is in the
   // text, and almost always at the END of the reply, so keep the tail.
   const t = lastAssistantText.replace(/\s+/g, ' ').trim()
-  if (!t) return ''
-  return t.length > 280 ? '…' + t.slice(-279) : t
+  const text = t.length > 280 ? '…' + t.slice(-279) : t
+  if (/\?[\s"'’”)\]]*$/.test(t)) return { kind: 'reply', text }
+  return { kind: 'idle', text }
 }
 
 /** Extract text/tool info from an assistant record. */

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Instance, PrStatusMap } from '../../../shared/types'
-import { agoShort, elapsed, prBadge, STATE_WORD } from '../format'
+import { agoShort, elapsed, prBadge, stateWord } from '../format'
 import { TerminalView } from './TerminalView'
 import { DetailPanel } from './DetailPanel'
 
@@ -85,7 +85,7 @@ export function GridPane(props: {
         )}
         <span className="pane-name">{inst?.name ?? 'growing…'}</span>
         <span className="state-word" data-state={state}>
-          {inst ? STATE_WORD[inst.state] : 'CLONING'}
+          {inst ? stateWord(inst.state, inst.now.askKind) : 'CLONING'}
         </span>
         <span className="pane-activity" title={inst?.now.activity}>
           <span className="caret">▸</span>
@@ -189,13 +189,50 @@ export function GridPane(props: {
       <div className="pane-body">
         {/* overlay, not a row — pane height must not change or ConPTY redraws
             mangle the composer mid-typing */}
-        {pendingAsk && !askDismissed && !showIntel && (
+        {pendingAsk && !askDismissed && !showIntel && inst && (
           <div className="pane-ask" title={pendingAsk}>
-            <span className="pane-ask-label">NEEDS YOU</span>
-            <span className="pane-ask-text">{pendingAsk}</span>
-            <button className="pane-ask-close" title="Dismiss" onClick={() => setAskDismissed(true)}>
-              ✕
-            </button>
+            <div className="pane-ask-top">
+              <span className="pane-ask-label">{stateWord('needs-you', inst.now.askKind)}</span>
+              <span className="pane-ask-text">{pendingAsk}</span>
+              <button className="pane-ask-close" title="Dismiss" onClick={() => setAskDismissed(true)}>
+                ✕
+              </button>
+            </div>
+            {/* one-click answers — keystrokes straight into the pty, no
+                focusing, no typing */}
+            {ptyId && (
+              <div className="pane-ask-actions">
+                {inst.now.askKind === 'question' &&
+                  inst.now.pendingOptions?.slice(0, 9).map((label, i) => (
+                    <button
+                      key={i}
+                      className="pane-ask-btn"
+                      title={`Answer: ${label}`}
+                      onClick={() => window.fleet.ptyInput(ptyId, String(i + 1))}
+                    >
+                      {i + 1} · {label}
+                    </button>
+                  ))}
+                {(inst.now.askKind === 'permission' || inst.now.askKind === 'plan') && (
+                  <button
+                    className="pane-ask-btn"
+                    title="Selects option 1 (yes) in the prompt"
+                    onClick={() => window.fleet.ptyInput(ptyId, '1')}
+                  >
+                    ✓ Approve
+                  </button>
+                )}
+                {inst.now.askKind === 'reply' && (
+                  <button
+                    className="pane-ask-btn"
+                    title="Sends: Proceed with your best judgment."
+                    onClick={() => window.fleet.ptyInput(ptyId, 'Proceed with your best judgment.\r')}
+                  >
+                    ⚡ Proceed on your judgment
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
         {ptyId && !(showIntel && inst) ? (
