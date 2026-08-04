@@ -132,6 +132,7 @@ export function prBadge(st: PrStatus | undefined): PrBadge | null {
       words = review || (st.isDraft ? 'draft' : 'open')
     }
   }
+  if (st.stale) parts.push(`last check failed (${st.error ?? 'gh error'}) — showing last-known status`)
   return { glyph, tone, words, title: `PR #${st.number} — ${parts.join(' · ')}` }
 }
 

@@ -1,4 +1,4 @@
-import type { FleetSnapshot, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, WrapupReport } from '../shared/types'
+import type { FleetSnapshot, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 declare global {
   interface Window {
@@ -21,6 +21,7 @@ declare global {
       confirm: (message: string, detail?: string) => Promise<boolean>
       wrapupCheck: () => Promise<WrapupReport>
       recap: (sessionId: string) => Promise<{ text: string; generatedAt: number; fromCache: boolean }>
+      transcriptTail: (sessionId: string) => Promise<TranscriptTailMsg[]>
       hooksStatus: () => Promise<boolean>
       hooksInstall: () => Promise<{ installed: string[]; settingsPath: string }>
       reportSelected: (sessionId: string | null) => void

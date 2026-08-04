@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Instance, PrStatusMap } from '../../../shared/types'
+import type { Instance, PrStatusMap, TranscriptTailMsg } from '../../../shared/types'
 import { agoShort, elapsed, prBadge, stateWord } from '../format'
 import { TerminalView } from './TerminalView'
 import { DetailPanel } from './DetailPanel'
@@ -83,6 +83,25 @@ export function GridPane(props: {
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onUp)
   }
+  // hover peek — linger on the quote rows and the last few exchanges of the
+  // conversation pop up, so "wait, what did it just say?" needs no click
+  const [peek, setPeek] = useState<TranscriptTailMsg[] | null>(null)
+  const peekSeq = useRef(0)
+  function peekEnter(): void {
+    if (!inst) return
+    const sessionId = inst.sessionId
+    const seq = ++peekSeq.current
+    setTimeout(async () => {
+      if (peekSeq.current !== seq) return // pointer already left
+      const tail = await window.fleet.transcriptTail(sessionId)
+      if (peekSeq.current === seq && tail.length > 0) setPeek(tail)
+    }, 300)
+  }
+  function peekLeave(): void {
+    peekSeq.current++
+    setPeek(null)
+  }
+
   // needs-you banner dismissal — comes back if a NEW ask appears
   const [askDismissed, setAskDismissed] = useState(false)
   const pendingAsk = state === 'needs-you' ? inst?.now.pendingAsk : undefined
@@ -139,8 +158,12 @@ export function GridPane(props: {
           {inst ? stateWord(inst.state, inst.now.askKind) : 'CLONING'}
         </span>
         <span className="pane-activity" title={inst?.now.activity}>
-          <span className="caret">▸</span>
-          {inst?.now.activity ?? 'Growing clone… roger roger.'}
+          {(inst ? inst.now.activity : 'Growing clone… roger roger.') && (
+            <>
+              <span className="caret">▸</span>
+              {inst?.now.activity ?? 'Growing clone… roger roger.'}
+            </>
+          )}
         </span>
         <span className="pane-chips">
           {inst &&
@@ -214,13 +237,23 @@ export function GridPane(props: {
           terminal below from resizing mid-typing (ConPTY redraw mangles the
           composer) */}
       {inst && (
-        <div className="pane-quotes">
-          <span className="pane-quote" title={inst.recent.lastPrompt}>
+        <div className="pane-quotes" onMouseEnter={peekEnter} onMouseLeave={peekLeave}>
+          <span className="pane-quote" title="Hover to peek at the last few exchanges">
             <span className="who">❯ you</span> {inst.recent.lastPrompt || '—'}
           </span>
-          <span className="pane-quote" title={inst.recent.lastAssistantText}>
+          <span className="pane-quote" title="Hover to peek at the last few exchanges">
             <span className="who">✦ clone</span> {inst.recent.lastAssistantText || '—'}
           </span>
+          {peek && (
+            <div className="pane-peek">
+              {peek.map((m, i) => (
+                <div key={i} className="peek-msg" data-who={m.who}>
+                  <span className="who">{m.who === 'you' ? '❯ you' : '✦ clone'}</span>
+                  <span className="peek-text">{m.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       <div className="pane-body">

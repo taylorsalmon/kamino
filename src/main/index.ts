@@ -10,6 +10,7 @@ import { hooksInstalled, installHooks, migrateHooks } from './hook-installer'
 import { recentProjects, recentSessions } from './recents'
 import { recap } from './recap'
 import { PrStatusPoller } from './pr-status'
+import { transcriptTail } from './transcript-peek'
 import { checkRepo } from './wrapup'
 import type { FleetSnapshot, LaunchRequest } from '../shared/types'
 
@@ -215,6 +216,13 @@ app.whenReady().then(() => {
     const inst = store.get(sessionId)
     if (!inst) throw new Error('unknown session')
     return recap(sessionId, inst.cwd)
+  })
+
+  // ── hover peek: last few transcript exchanges ────────────────────────
+  ipcMain.handle('transcript:tail', (_e, sessionId: string) => {
+    const inst = store.get(sessionId)
+    if (!inst) return []
+    return transcriptTail(inst.cwd, inst.sessionId)
   })
 
   // ── hooks ────────────────────────────────────────────────────────────

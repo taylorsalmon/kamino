@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { FleetSnapshot, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, WrapupReport } from '../shared/types'
+import type { FleetSnapshot, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 const api = {
   // fleet status
@@ -51,6 +51,10 @@ const api = {
   // recap
   recap: (sessionId: string): Promise<{ text: string; generatedAt: number; fromCache: boolean }> =>
     ipcRenderer.invoke('recap:get', sessionId),
+
+  // hover peek: last few transcript exchanges
+  transcriptTail: (sessionId: string): Promise<TranscriptTailMsg[]> =>
+    ipcRenderer.invoke('transcript:tail', sessionId),
 
   // hooks + focus routing
   hooksStatus: (): Promise<boolean> => ipcRenderer.invoke('hooks:status'),
