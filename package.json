@@ -1,6 +1,6 @@
 {
   "name": "kamino",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "description": "Kamino: the Star Wars ocean world where the clone army is grown and commanded. This one grows Claude Code agents instead — agent orchestration with live status, embedded terminals, and command of every Claude instance on the machine.",
   "main": "out/main/index.js",
   "author": "Taylor Salmon",
