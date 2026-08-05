@@ -165,10 +165,27 @@ export interface DeconflictEvent {
   denied: boolean
 }
 
+/**
+ * A file more than one clone has edited recently. Pure observation — nothing is
+ * blocked over it, because the CLI's own Edit staleness check already handles
+ * the mechanical case. What it can't tell you is WHERE your clones keep meeting,
+ * which is what decides whether to split their work, give one its own worktree,
+ * or leave them alone.
+ */
+export interface ContestedFile {
+  file: string
+  clones: Array<{ sessionId: string; name: string; at: number; edits: number }>
+  /** most recent edit by anyone */
+  lastAt: number
+  /** total edits across all the clones involved */
+  edits: number
+}
+
 export interface AirspaceState {
   mode: DeconflictMode
   claims: FileClaim[]
   events: DeconflictEvent[]
+  contested: ContestedFile[]
   /** running total of collisions actually denied (survives restarts) */
   prevented: number
 }

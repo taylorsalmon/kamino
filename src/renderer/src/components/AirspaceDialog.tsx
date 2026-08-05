@@ -40,7 +40,13 @@ export function AirspaceDialog(props: { onClose: () => void; now: number }): Rea
   const refresh = useCallback(() => {
     window.fleet.airspaceGet().then(setState)
   }, [])
-  useEffect(refresh, [refresh])
+  // claims and contested files change as clones work — poll while open so the
+  // panel is worth leaving on a second monitor
+  useEffect(() => {
+    refresh()
+    const t = setInterval(refresh, 4000)
+    return () => clearInterval(t)
+  }, [refresh])
 
   // live: a collision while the panel is open lands straight in the log
   useEffect(() => {
@@ -64,6 +70,7 @@ export function AirspaceDialog(props: { onClose: () => void; now: number }): Rea
 
   const events = state?.events ?? []
   const claims = state?.claims ?? []
+  const contested = state?.contested ?? []
   const wouldHave = events.filter((e) => !e.denied).length
 
   return (
@@ -95,6 +102,9 @@ export function AirspaceDialog(props: { onClose: () => void; now: number }): Rea
             </span>
             <span className="airspace-stat soft">
               <b>{claims.length}</b> clones with work in flight
+            </span>
+            <span className="airspace-stat soft">
+              <b>{contested.length}</b> contested files
             </span>
           </div>
 
@@ -131,6 +141,39 @@ export function AirspaceDialog(props: { onClose: () => void; now: number }): Rea
             </>
           )}
 
+          <div className="airspace-section">
+            CONTESTED FILES
+            <span className="airspace-section-note">
+              edited by more than one clone in the last hour — nothing is blocked over this, it just
+              shows you where your clones keep meeting
+            </span>
+          </div>
+          {contested.length === 0 ? (
+            <div className="airspace-empty">
+              No overlap. Your clones are working on genuinely separate files — no reason to split
+              them into worktrees or hand out narrower lanes.
+            </div>
+          ) : (
+            <div className="airspace-contested">
+              {contested.map((c) => (
+                <div key={c.file} className="airspace-contest" data-hot={c.clones.length > 2 ? 'yes' : 'no'}>
+                  <span className="airspace-contest-file" title={c.file}>
+                    {c.file.split(/[\\/]/).slice(-2).join('/')}
+                  </span>
+                  <span className="airspace-contest-clones">
+                    {c.clones.map((cl) => (
+                      <span key={cl.sessionId} className="airspace-contest-clone">
+                        {cl.name}
+                        <span className="airspace-contest-edits">×{cl.edits}</span>
+                      </span>
+                    ))}
+                  </span>
+                  <span className="airspace-claim-ago">{agoShort(c.lastAt, props.now)} ago</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="airspace-section">COLLISION LOG</div>
           {events.length === 0 ? (
             <div className="airspace-empty">
@@ -163,7 +206,8 @@ export function AirspaceDialog(props: { onClose: () => void; now: number }): Rea
         <div className="modal-body modal-actions">
           <span className="airspace-hint">
             Guards git only — file edits already protect themselves, since the CLI refuses an edit
-            whose file moved underneath it.
+            whose file moved underneath it. Contested files are tracked in every mode, since
+            watching costs nothing.
           </span>
           <button className="btn" onClick={refresh}>
             Refresh

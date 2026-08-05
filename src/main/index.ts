@@ -276,6 +276,7 @@ app.whenReady().then(() => {
     mode: deconflictor.getMode(),
     claims: deconflictor.claimList(),
     events: deconflictor.events(),
+    contested: deconflictor.contestedFiles(),
     prevented: deconflictor.preventedCount()
   }))
   ipcMain.handle('airspace:set-mode', (_e, mode: DeconflictMode) => {

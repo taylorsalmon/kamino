@@ -128,6 +128,40 @@ check('non-shell tools are ignored', d.decide({ sessionId: 'sess-B', cwd: REPO, 
 check('a shell command with no git is ignored', d.decide({ sessionId: 'sess-B', cwd: REPO, ...bash('npm run build') }), null)
 
 // ---------------------------------------------------------------------------
+// contested files — observation only, and it must not cry wolf: one clone
+// editing its own file repeatedly is not contention
+// ---------------------------------------------------------------------------
+const c = new Deconflictor()
+c.setMode('off') // tracking is independent of mode
+const FILE = `${REPO}\\src\\auth.ts`
+
+c.noteToolUse('sess-A', 'Edit', 'Kenobi', REPO, { file_path: FILE })
+c.noteToolUse('sess-A', 'Edit', 'Kenobi', REPO, { file_path: FILE })
+check('one clone editing twice is not contested', c.contestedFiles().length, 0)
+
+c.noteToolUse('sess-B', 'Write', 'Rex', REPO, { file_path: FILE })
+const contested = c.contestedFiles()
+check('two clones in one file is contested', contested.length, 1)
+check('it names the file', contested[0]?.file, FILE)
+check('it counts both clones', contested[0]?.clones.length, 2)
+check('it totals the edits', contested[0]?.edits, 3)
+check('per-clone edit counts are kept', contested[0]?.clones.find((x) => x.name === 'Kenobi')?.edits, 2)
+
+// a file only one clone has touched stays out of the list
+c.noteToolUse('sess-A', 'Edit', 'Kenobi', REPO, { file_path: `${REPO}\\solo.ts` })
+check('an uncontested file is excluded', c.contestedFiles().length, 1)
+
+// three clones deep sorts above a two-clone file
+c.noteToolUse('sess-C', 'Edit', 'Cody', REPO, { file_path: FILE })
+c.noteToolUse('sess-A', 'Edit', 'Kenobi', REPO, { file_path: `${REPO}\\two.ts` })
+c.noteToolUse('sess-B', 'Edit', 'Rex', REPO, { file_path: `${REPO}\\two.ts` })
+check('worst contention sorts first', c.contestedFiles()[0]?.clones.length, 3)
+
+// reads and non-edit tools never register
+c.noteToolUse('sess-D', 'Read', 'Fives', REPO, { file_path: FILE })
+check('reads are not contention', c.contestedFiles()[0]?.clones.length, 3)
+
+// ---------------------------------------------------------------------------
 // worktree display identity — a clone in <repo>/.claude/worktrees/<name> must
 // still report the REPO it belongs to, or three clones on one project become
 // three unrelated names on the board
@@ -152,5 +186,7 @@ if (failed > 0) {
   console.log(`\n${failed} check(s) failed`)
   process.exitCode = 1
 } else {
-  console.log(`deconflict: ${CASES.length} classifier cases + 18 decision + 6 worktree checks passed`)
+  console.log(
+    `deconflict: ${CASES.length} classifier cases + 18 decision + 9 contention + 6 worktree checks passed`
+  )
 }

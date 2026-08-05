@@ -24,10 +24,16 @@
  */
 import { EventEmitter } from 'node:events'
 import * as fs from 'node:fs'
-import type { DeconflictEvent, DeconflictMode, FileClaim } from '../shared/types'
+import type { ContestedFile, DeconflictEvent, DeconflictMode, FileClaim } from '../shared/types'
 
 /** claims go stale — a clone that last edited long ago is no longer "in flight" */
 const CLAIM_TTL_MS = 15 * 60 * 1000
+/** how far back the contested-files view looks. Longer than a claim, because
+ *  "where do my clones keep meeting" is a question about the session, not about
+ *  what is uncommitted this minute. */
+const CONTESTED_WINDOW_MS = 60 * 60 * 1000
+/** most files tracked for contention before the oldest are dropped */
+const TOUCH_LIMIT = 600
 /** most events kept for the Airspace log */
 const LOG_LIMIT = 200
 /** tools whose input names a file the clone is actively changing */
@@ -152,8 +158,18 @@ const RISK_ADVICE: Record<GitRisk, string> = {
     'Do not run it. Leave the working tree alone and either finish on the current branch or ask the user how to proceed.'
 }
 
+/** one clone's edit history for one file */
+interface Touch {
+  sessionId: string
+  name: string
+  at: number
+  edits: number
+}
+
 export class Deconflictor extends EventEmitter {
   private claims = new Map<string, Claim>() // key: sessionId
+  /** file → sessionId → touch. Observation only; nothing is blocked over it. */
+  private touches = new Map<string, Map<string, Touch>>()
   private log: DeconflictEvent[] = []
   private mode: DeconflictMode = 'warn'
   private prevented = 0
@@ -212,6 +228,70 @@ export class Deconflictor extends EventEmitter {
       const oldest = [...claim.files.entries()].sort((a, b) => a[1] - b[1])[0]
       if (oldest) claim.files.delete(oldest[0])
     }
+    this.recordTouch(file, sessionId, cloneName, now)
+  }
+
+  /** Contention history, kept separately from claims: a claim answers "is this
+   *  uncommitted right now", a touch answers "who has been in this file". */
+  private recordTouch(file: string, sessionId: string, cloneName: string, now: number): void {
+    let byClone = this.touches.get(file)
+    if (!byClone) {
+      byClone = new Map()
+      this.touches.set(file, byClone)
+    }
+    const existing = byClone.get(sessionId)
+    if (existing) {
+      existing.at = now
+      existing.edits += 1
+      existing.name = cloneName
+    } else {
+      byClone.set(sessionId, { sessionId, name: cloneName, at: now, edits: 1 })
+    }
+    if (this.touches.size > TOUCH_LIMIT) this.evictOldestTouch()
+  }
+
+  private evictOldestTouch(): void {
+    let oldestFile: string | null = null
+    let oldestAt = Infinity
+    for (const [file, byClone] of this.touches) {
+      let newest = 0
+      for (const t of byClone.values()) newest = Math.max(newest, t.at)
+      if (newest < oldestAt) {
+        oldestAt = newest
+        oldestFile = file
+      }
+    }
+    if (oldestFile) this.touches.delete(oldestFile)
+  }
+
+  /**
+   * Files more than one clone has edited inside the window, worst first. Runs
+   * off the Airspace panel, never off the hook path, so the pruning here is
+   * cheap enough to do inline.
+   */
+  contestedFiles(): ContestedFile[] {
+    const cutoff = Date.now() - CONTESTED_WINDOW_MS
+    const out: ContestedFile[] = []
+    for (const [file, byClone] of this.touches) {
+      for (const [sessionId, t] of byClone) {
+        if (t.at < cutoff) byClone.delete(sessionId)
+      }
+      if (byClone.size === 0) {
+        this.touches.delete(file)
+        continue
+      }
+      if (byClone.size < 2) continue // one clone editing its own file is not contention
+      const clones = [...byClone.values()].sort((a, b) => b.at - a.at)
+      out.push({
+        file,
+        clones,
+        lastAt: clones[0].at,
+        edits: clones.reduce((n, c) => n + c.edits, 0)
+      })
+    }
+    // most clones involved first, then most recent — the top row is the one
+    // worth splitting up
+    return out.sort((a, b) => b.clones.length - a.clones.length || b.lastAt - a.lastAt)
   }
 
   /** Its own commit means its work is no longer in flight. */

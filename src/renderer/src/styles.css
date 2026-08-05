@@ -2101,6 +2101,64 @@ body.pane-resizing .terminal-view {
   color: var(--faint);
   margin: 0 0 7px;
 }
+.airspace-section-note {
+  display: block;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ghost);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+.airspace-contested {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  max-height: 24vh;
+  overflow: auto;
+}
+.airspace-contest {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 9px;
+  border-radius: 5px;
+  background: var(--bg1);
+  border-left: 2px solid var(--amber);
+}
+/* three or more clones in one file is not a race, it is a planning problem */
+.airspace-contest[data-hot='yes'] {
+  border-left-color: var(--coral);
+}
+.airspace-contest-file {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.airspace-contest-clones {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.airspace-contest-clone {
+  font-size: 10.5px;
+  color: var(--muted);
+  border: 1px solid var(--line-bright);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.airspace-contest-edits {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ghost);
+  margin-left: 3px;
+}
 .airspace-claims {
   display: flex;
   flex-direction: column;
