@@ -14,9 +14,22 @@ export function LaunchDialog(props: {
   const [cwd, setCwd] = useState('')
   const [prompt, setPrompt] = useState('')
   const [permissionMode, setPermissionMode] = useState('default')
+  // standing orders live in the clone's system prompt, so the choice is made
+  // once at commission time and can't be forgotten later in the session
+  const [autoShip, setAutoShip] = useState(
+    () => localStorage.getItem('fleet:auto-ship') !== 'off'
+  )
+  // its own worktree: a folder has one checked-out branch, so clones sharing
+  // one land in the same branch and the same PR however well they behave
+  const [worktree, setWorktree] = useState(false)
+  const [worktreeName, setWorktreeName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const now = Date.now()
+
+  useEffect(() => {
+    localStorage.setItem('fleet:auto-ship', autoShip ? 'on' : 'off')
+  }, [autoShip])
 
   useEffect(() => {
     window.fleet.recentProjects().then((p) => {
@@ -34,7 +47,10 @@ export function LaunchDialog(props: {
       const info = await window.fleet.spawn({
         cwd,
         initialPrompt: prompt.trim() || undefined,
-        permissionMode: permissionMode === 'default' ? undefined : permissionMode
+        permissionMode: permissionMode === 'default' ? undefined : permissionMode,
+        autoShip,
+        worktree,
+        worktreeName: worktree ? worktreeName.trim() || undefined : undefined
       })
       props.onLaunched(info.ptyId, info.pid)
     } catch (e) {
@@ -49,7 +65,11 @@ export function LaunchDialog(props: {
     setBusy(true)
     setError('')
     try {
-      const info = await window.fleet.spawn({ cwd: s.cwd, resumeSessionId: s.sessionId })
+      const info = await window.fleet.spawn({
+        cwd: s.cwd,
+        resumeSessionId: s.sessionId,
+        autoShip
+      })
       props.onLaunched(info.ptyId, info.pid)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -118,6 +138,47 @@ export function LaunchDialog(props: {
                 <option value="bypassPermissions">auto — never asks, full autonomy</option>
               </select>
             </div>
+            <label className="field auto-ship" title="git worktree add — its own directory and branch off this repo">
+              <span className="auto-ship-top">
+                <input
+                  type="checkbox"
+                  checked={worktree}
+                  onChange={(e) => setWorktree(e.target.checked)}
+                />
+                <span className="section-label">Own worktree — its own branch and PR</span>
+              </span>
+              <span className="auto-ship-note">
+                A folder has one checked-out branch, so clones sharing one commit to the same branch
+                and land in one PR no matter how carefully they work. Give this clone its own tree
+                and it gets its own branch, its own PR, and can&apos;t collide with a sibling at all.
+                Needs a git repo.
+              </span>
+              {worktree && (
+                <input
+                  className="worktree-name"
+                  type="text"
+                  placeholder="worktree name (optional) — e.g. rot-bar-fix"
+                  value={worktreeName}
+                  onChange={(e) => setWorktreeName(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )}
+            </label>
+            <label className="field auto-ship" title="Appended to the clone's system prompt, so it holds for the whole session">
+              <span className="auto-ship-top">
+                <input
+                  type="checkbox"
+                  checked={autoShip}
+                  onChange={(e) => setAutoShip(e.target.checked)}
+                />
+                <span className="section-label">Standing orders: ship its own work</span>
+              </span>
+              <span className="auto-ship-note">
+                Finishing includes shipping — commit, push, and open (or update) a PR without being
+                asked, with anything unfinished logged as follow-ups. Skipped on main/master and in
+                repos with no remote.
+              </span>
+            </label>
             <div className="modal-actions">
               {error ? (
                 <span className="recap-err">{error}</span>

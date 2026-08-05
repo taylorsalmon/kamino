@@ -7,6 +7,8 @@ import { LaunchDialog } from './components/LaunchDialog'
 import { WrapupDialog } from './components/WrapupDialog'
 import { GridPane } from './components/GridPane'
 import { CheatSheet } from './components/CheatSheet'
+import { HandoffDialog } from './components/HandoffDialog'
+import { AirspaceDialog } from './components/AirspaceDialog'
 import { focusTerminal, setTermFontSize } from './terminals'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
@@ -58,6 +60,7 @@ export default function App(): React.JSX.Element {
   const [showLaunch, setShowLaunch] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [showWrapup, setShowWrapup] = useState(false)
+  const [showAirspace, setShowAirspace] = useState(false)
   const [showCheats, setShowCheats] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<ViewMode>(
@@ -137,6 +140,16 @@ export default function App(): React.JSX.Element {
   }, [snap, pendingAdopt])
 
   const [hooksOk, setHooksOk] = useState(true)
+
+  // clicking Clawd (the rot meter) anywhere opens the reincarnation dialog —
+  // RotBar sits inside clickable cards, so it asks via a window event rather
+  // than a callback threaded through three components
+  const [handoffFor, setHandoffFor] = useState<string | null>(null)
+  useEffect(() => {
+    const onHandoff = (e: Event): void => setHandoffFor((e as CustomEvent<string>).detail)
+    window.addEventListener('kamino:handoff', onHandoff)
+    return () => window.removeEventListener('kamino:handoff', onHandoff)
+  }, [])
 
   // F2 flips Terminal ⇄ Intel from anywhere — the terminal forwards it via
   // a window event since xterm otherwise owns the keyboard
@@ -386,6 +399,19 @@ export default function App(): React.JSX.Element {
     }
   }, [])
 
+  // the handoff target stays rendered from the last known snapshot even after
+  // its clone is decommissioned — otherwise a transfer that kills the old clone
+  // tears its own "transfer complete" dialog off the screen
+  const handoffLive = useMemo(
+    () => (handoffFor ? snap.instances.find((i) => i.sessionId === handoffFor) ?? null : null),
+    [snap, handoffFor]
+  )
+  const lastHandoffInst = useRef<Instance | null>(null)
+  useEffect(() => {
+    if (handoffLive) lastHandoffInst.current = handoffLive
+  }, [handoffLive])
+  const handoffInstance = handoffLive ?? (handoffFor ? lastHandoffInst.current : null)
+
   const selectedInstance = useMemo(
     () => snap.instances.find((i) => i.sessionId === selectedId) ?? null,
     [snap, selectedId]
@@ -565,6 +591,18 @@ export default function App(): React.JSX.Element {
                   <span className="menu-item-title">🧹 End-of-shift sweep</span>
                   <span className="menu-item-sub">
                     check every repo is committed, pushed &amp; on a PR before you close out
+                  </span>
+                </button>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setShowAirspace(true)
+                  }}
+                >
+                  <span className="menu-item-title">🛡 Airspace control</span>
+                  <span className="menu-item-sub">
+                    stop one clone committing or destroying another&apos;s in-flight work
                   </span>
                 </button>
                 <button
@@ -879,6 +917,15 @@ export default function App(): React.JSX.Element {
       )}
       </div>
 
+      {handoffInstance && (
+        <HandoffDialog
+          instance={handoffInstance}
+          ptyId={ptyByPid.get(handoffInstance.pid)?.ptyId ?? null}
+          onClose={() => setHandoffFor(null)}
+          onSuccessor={onLaunched}
+        />
+      )}
+      {showAirspace && <AirspaceDialog onClose={() => setShowAirspace(false)} now={now} />}
       {showCheats && <CheatSheet onClose={() => setShowCheats(false)} />}
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
       {showWrapup && (

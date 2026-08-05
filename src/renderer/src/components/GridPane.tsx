@@ -227,12 +227,23 @@ export function GridPane(props: {
             {inst.repo}
             {inst.gitBranch ? ` · ${inst.gitBranch}` : ''}
           </span>
+          {inst.worktree && (
+            <span
+              className="pane-kind"
+              data-kind="worktree"
+              title={`Its own git worktree — separate branch and PR, cannot collide with a sibling\n${inst.cwd}`}
+            >
+              ⑄ {inst.worktree}
+            </span>
+          )}
           {inst.kind !== 'embedded' && (
             <span className="pane-kind" data-kind={inst.kind} title={inst.kind === 'external' ? 'Running in an outside terminal' : 'Headless background session'}>
               {inst.kind === 'external' ? 'field-deployed' : 'covert ops'}
             </span>
           )}
-          {inst.state !== 'dead' && <RotBar context={inst.context} now={now} />}
+          {inst.state !== 'dead' && (
+            <RotBar context={inst.context} now={now} sessionId={inst.sessionId} />
+          )}
         </div>
       )}
       {/* always rendered while a session exists — constant height keeps the

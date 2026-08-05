@@ -24,6 +24,9 @@ const registry = new Map<string, TermEntry>()
 let wired = false
 let fontSize = 13
 
+/** how long an exited terminal's buffer sticks around before disposal */
+const EXIT_DISPOSE_MS = 60_000
+
 /** The CLI paints for its own theme (~/.claude.json, absent = dark); the
  *  terminal background must match or its art renders unreadably. */
 const THEMES = {
@@ -108,6 +111,11 @@ function wireGlobalListeners(): void {
     if (e) {
       e.exited = true
       e.term.write(`\r\n\x1b[38;5;245m— session ended (exit ${exitCode}) —\x1b[0m\r\n`)
+      // free the terminal once its pane has gone (ptyIds are never reused) —
+      // otherwise every decommissioned clone's scrollback buffer stays in the
+      // registry for the app's lifetime. The delay keeps the ended message
+      // readable while the pane is still on screen.
+      setTimeout(() => disposeTerminal(ptyId), EXIT_DISPOSE_MS)
     }
   })
 }

@@ -91,8 +91,11 @@ export interface Instance {
   sessionId: string
   pid: number
   cwd: string
-  /** Last path segment of cwd, for display */
+  /** The repo's own folder name — for a worktree clone, the PARENT repo's, not
+   *  the worktree directory's, so several clones on one project stay legible */
   repo: string
+  /** set when this clone runs in its own git worktree (.claude/worktrees/<name>) */
+  worktree?: string
   gitBranch: string
   name: string
   kind: InstanceKind
@@ -106,6 +109,85 @@ export interface Instance {
   version?: string
   model?: string
   permissionMode?: string
+}
+
+/**
+ * Reincarnation progress. Stages run in order: briefing (the old clone is
+ * writing its handoff brief) → brief (it's written) → commissioning (successor
+ * spawning) → seeding (brief going into the successor's composer) → done.
+ */
+export type HandoffStage = 'briefing' | 'brief' | 'commissioning' | 'seeding' | 'done' | 'error'
+
+export interface HandoffProgress {
+  /** the OLD clone's session — the one being handed off */
+  sessionId: string
+  stage: HandoffStage
+  /** the brief, streaming while it's being written */
+  brief?: string
+  /** brief was cut short (timeout) and is going over incomplete */
+  partial?: boolean
+  successor?: { ptyId: string; pid: number }
+  killedOld?: boolean
+  error?: string
+}
+
+/**
+ * Airspace control. 'off' stands down entirely; 'warn' logs what it would have
+ * stopped but lets everything run; 'enforce' denies the tool call and hands the
+ * clone a reason it can act on.
+ */
+export type DeconflictMode = 'off' | 'warn' | 'enforce'
+
+/** A clone's in-flight edits in one folder. */
+export interface FileClaim {
+  sessionId: string
+  name: string
+  cwd: string
+  /** most recently touched files (capped for display) */
+  files: string[]
+  lastEditAt: number
+}
+
+/** One git operation that collided with a sibling's in-flight work. */
+export interface DeconflictEvent {
+  id: string
+  at: number
+  sessionId: string
+  cloneName: string
+  cwd: string
+  /** the git command as classified, e.g. "git add -A" */
+  command: string
+  risk: 'stage-all' | 'destructive'
+  /** names of the clones whose work was at risk */
+  siblings: string[]
+  siblingFiles: string[]
+  /** false in warn mode — logged, but the command still ran */
+  denied: boolean
+}
+
+/**
+ * A file more than one clone has edited recently. Pure observation — nothing is
+ * blocked over it, because the CLI's own Edit staleness check already handles
+ * the mechanical case. What it can't tell you is WHERE your clones keep meeting,
+ * which is what decides whether to split their work, give one its own worktree,
+ * or leave them alone.
+ */
+export interface ContestedFile {
+  file: string
+  clones: Array<{ sessionId: string; name: string; at: number; edits: number }>
+  /** most recent edit by anyone */
+  lastAt: number
+  /** total edits across all the clones involved */
+  edits: number
+}
+
+export interface AirspaceState {
+  mode: DeconflictMode
+  claims: FileClaim[]
+  events: DeconflictEvent[]
+  contested: ContestedFile[]
+  /** running total of collisions actually denied (survives restarts) */
+  prevented: number
 }
 
 /** One message in the hover-peek transcript tail. */
@@ -140,6 +222,12 @@ export interface LaunchRequest {
   resumeSessionId?: string
   initialPrompt?: string
   permissionMode?: string
+  /** standing orders to commit, push and raise a PR when work is done.
+   *  Omitted = on; only an explicit false turns it off. */
+  autoShip?: boolean
+  /** give this clone its own git worktree, so it gets its own branch and PR */
+  worktree?: boolean
+  worktreeName?: string
 }
 
 export interface PtyInfo {

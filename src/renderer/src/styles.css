@@ -1221,6 +1221,11 @@ body.pane-resizing .terminal-view {
 .pane-kind[data-kind='background'] {
   color: var(--ghost);
 }
+/* its own worktree: isolated by construction, so it reads as reassurance */
+.pane-kind[data-kind='worktree'] {
+  color: var(--sage);
+  text-transform: none;
+}
 .pane-quotes {
   display: flex;
   flex-direction: column;
@@ -1989,6 +1994,493 @@ body.pane-resizing .terminal-view {
   font-size: 10.5px;
   line-height: 1.45;
   color: var(--ghost);
+}
+.rot-tip-cta {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--clay);
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+/* Clawd is the button that opens the reincarnation dialog */
+.rot[data-clickable='yes'] {
+  cursor: pointer;
+  border-radius: 5px;
+  padding: 1px 3px;
+  margin-right: -3px;
+}
+.rot[data-clickable='yes']:hover,
+.rot[data-clickable='yes']:focus-visible {
+  background: var(--bg3);
+  outline: none;
+}
+.rot[data-clickable='yes']:focus-visible {
+  box-shadow: 0 0 0 2px var(--clay-dim);
+}
+
+/* ── Airspace control ─────────────────────────────────────────────────── */
+.modal.airspace {
+  width: min(760px, 95vw);
+}
+.airspace-intro {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.airspace-intro code,
+.airspace-row code,
+.airspace-hint code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--clay);
+}
+.airspace-scoreboard {
+  display: flex;
+  gap: 16px;
+  padding: 9px 12px;
+  border-radius: 7px;
+  background: var(--bg2);
+  margin-bottom: 14px;
+}
+.airspace-stat {
+  font-size: 12px;
+  color: var(--text);
+}
+.airspace-stat b {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--sage);
+  margin-right: 4px;
+}
+.airspace-stat.soft b {
+  color: var(--muted);
+}
+.airspace-modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+  margin-bottom: 16px;
+}
+@media (max-width: 640px) {
+  .airspace-modes {
+    grid-template-columns: 1fr;
+  }
+}
+.airspace-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg1);
+  cursor: pointer;
+}
+.airspace-mode.active {
+  border-color: var(--clay);
+  background: var(--bg2);
+}
+.airspace-mode-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.airspace-mode-body {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+.airspace-section {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  margin: 0 0 7px;
+}
+.airspace-section-note {
+  display: block;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ghost);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+.airspace-contested {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  max-height: 24vh;
+  overflow: auto;
+}
+.airspace-contest {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 9px;
+  border-radius: 5px;
+  background: var(--bg1);
+  border-left: 2px solid var(--amber);
+}
+/* three or more clones in one file is not a race, it is a planning problem */
+.airspace-contest[data-hot='yes'] {
+  border-left-color: var(--coral);
+}
+.airspace-contest-file {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.airspace-contest-clones {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.airspace-contest-clone {
+  font-size: 10.5px;
+  color: var(--muted);
+  border: 1px solid var(--line-bright);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.airspace-contest-edits {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ghost);
+  margin-left: 3px;
+}
+.airspace-claims {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.airspace-claim {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 11.5px;
+  padding: 5px 9px;
+  border-radius: 5px;
+  background: var(--bg1);
+}
+.airspace-claim-name {
+  font-weight: 700;
+  color: var(--text);
+}
+.airspace-claim-files {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.airspace-claim-ago,
+.airspace-row-ago {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ghost);
+  flex-shrink: 0;
+}
+.airspace-empty {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--faint);
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: var(--bg1);
+}
+.airspace-log {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 30vh;
+  overflow: auto;
+}
+.airspace-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: var(--bg1);
+  border-left: 2px solid var(--amber);
+}
+.airspace-row.denied {
+  border-left-color: var(--coral);
+}
+.airspace-row-glyph {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.airspace-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.airspace-row-top {
+  font-size: 12px;
+  color: var(--text);
+}
+.airspace-row-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+.airspace-hint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--faint);
+  flex: 1;
+}
+
+/* standing orders toggle in the launch dialog */
+.field.auto-ship {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+}
+.auto-ship-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.auto-ship-top .section-label {
+  margin: 0;
+}
+.auto-ship-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--faint);
+  padding-left: 22px;
+}
+.worktree-name {
+  margin-left: 22px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg0);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.worktree-name:focus {
+  outline: none;
+  border-color: var(--clay);
+}
+
+/* ── Reincarnation — transfer to a fresh clone, or compact in place ────── */
+.modal.handoff {
+  width: min(820px, 95vw);
+}
+.handoff-gauge {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  background: var(--bg2);
+  margin-bottom: 12px;
+}
+.handoff-gauge[data-hot='yes'] {
+  background: rgba(255, 93, 93, 0.1);
+}
+.handoff-pct {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--amber);
+}
+.handoff-gauge[data-hot='yes'] .handoff-pct {
+  color: var(--coral);
+}
+.handoff-tokens {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.handoff-intro {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+.handoff-choice {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 700px) {
+  .handoff-choice {
+    grid-template-columns: 1fr;
+  }
+}
+.handoff-option {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg1);
+}
+.handoff-option:first-child {
+  border-color: var(--clay-dim);
+}
+.handoff-option-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.handoff-option-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.handoff-option-tag {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--clay);
+  border: 1px solid var(--clay-dim);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.handoff-option-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.handoff-option-body b {
+  color: var(--text);
+}
+.handoff-option-body code,
+.handoff-verdict code,
+.handoff-option .handoff-steps code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--clay);
+}
+.handoff-steps {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--faint);
+}
+.handoff-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.handoff-option .btn {
+  align-self: flex-start;
+}
+.handoff-warn {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--amber);
+}
+.handoff-warn.inline {
+  margin-left: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.handoff-verdict {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 12px;
+  border-radius: 7px;
+  margin-bottom: 12px;
+}
+.handoff-verdict.ok {
+  color: var(--sage);
+  background: rgba(95, 184, 138, 0.1);
+}
+.handoff-verdict.bad {
+  color: var(--coral);
+  background: rgba(255, 93, 93, 0.09);
+}
+.handoff-verdict.pending {
+  color: var(--muted);
+  background: var(--bg2);
+}
+.handoff-track {
+  display: flex;
+  gap: 18px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.handoff-track li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.handoff-track li[data-state='active'] {
+  color: var(--clay);
+}
+.handoff-track li[data-state='done'] {
+  color: var(--sage);
+}
+.handoff-track-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-family: var(--mono);
+  font-size: 9.5px;
+}
+.handoff-brief-head {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  margin-bottom: 6px;
+}
+.handoff-brief {
+  max-height: 34vh;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg0);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.handoff-done-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-top: 12px;
 }
 
 /* detail panel row: bar + raw numbers side by side */

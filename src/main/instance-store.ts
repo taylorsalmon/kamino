@@ -16,6 +16,7 @@ import {
   CLAUDE_DIR,
   SESSIONS_DIR,
   describeAssistant,
+  describeCwd,
   derivePendingAsk,
   extractContextTokens,
   extractPickerAnswers,
@@ -285,6 +286,7 @@ export class InstanceStore extends EventEmitter {
         t.diedAt = now
         t.tailer?.stop()
         t.tailer = null
+        this.emit('died', sessionId)
       } else if (t.diedAt && now - t.diedAt > DEAD_RETENTION_MS) {
         this.tracked.delete(sessionId)
       }
@@ -293,12 +295,13 @@ export class InstanceStore extends EventEmitter {
   }
 
   private createTracked(entry: SessionRegistryEntry): Tracked {
-    const repo = entry.cwd.split(/[\\/]/).filter(Boolean).pop() ?? entry.cwd
+    const { repo, worktree } = describeCwd(entry.cwd)
     const instance: Instance = {
       sessionId: entry.sessionId,
       pid: entry.pid,
       cwd: entry.cwd,
       repo,
+      worktree,
       gitBranch: '',
       name: entry.name ?? repo,
       kind: this.rosterSessionIds.has(entry.sessionId) ? 'background' : 'external',
@@ -462,7 +465,11 @@ export class InstanceStore extends EventEmitter {
         const content = rec.message?.content
         if (Array.isArray(content)) {
           for (const blk of content) {
-            if (blk?.type === 'tool_use' && blk.name) t.lastToolUse = { id: blk.id, name: blk.name, input: blk.input }
+            if (blk?.type === 'tool_use' && blk.name) {
+              t.lastToolUse = { id: blk.id, name: blk.name, input: blk.input }
+              // airspace control watches these to know who is mid-edit where
+              this.emit('tool-use', inst, blk.name, blk.input)
+            }
           }
         }
         const d = describeAssistant(rec)

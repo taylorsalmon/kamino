@@ -24,6 +24,33 @@ const EVENTS: Record<string, string> = {
   UserPromptSubmit: 'prompt'
 }
 
+/**
+ * Airspace control needs the PreToolUse event, which differs from the three
+ * above in two ways. It runs in FRONT of the tool (the call waits on our
+ * answer), and we need to read our reply — so it goes in as a native http hook
+ * rather than curl: no process spawn per call, and the response body is the
+ * decision.
+ *
+ * The explicit timeout is not optional. The documented default for hook
+ * requests is 600s, so without it a wedged Kamino could stall Bash calls in
+ * every Claude session on this machine, not just its own clones.
+ */
+const PRETOOL_MATCHER = 'Bash|PowerShell'
+const PRETOOL_TIMEOUT_S = 3
+
+function pretoolEntry(): Record<string, unknown> {
+  return {
+    matcher: PRETOOL_MATCHER,
+    hooks: [
+      {
+        type: 'http',
+        url: `http://${MARKER}pretool`,
+        timeout: PRETOOL_TIMEOUT_S
+      }
+    ]
+  }
+}
+
 export function installHooks(): { installed: string[]; settingsPath: string } {
   const settingsPath = path.join(CLAUDE_DIR, 'settings.json')
   let settings: Record<string, unknown> = {}
@@ -34,8 +61,37 @@ export function installHooks(): { installed: string[]; settingsPath: string } {
     if (fs.existsSync(settingsPath)) throw new Error(`Could not parse ${settingsPath}; not touching it.`)
   }
 
-  const hooks = (settings.hooks ?? {}) as Record<string, Array<{ hooks?: Array<{ command?: string }> }>>
+  const hooks = (settings.hooks ?? {}) as Record<
+    string,
+    Array<{ matcher?: string; hooks?: Array<{ command?: string; url?: string; timeout?: number }> }>
+  >
   const installed: string[] = []
+
+  // PreToolUse (airspace control) — url-based, so matched on `url` not `command`
+  {
+    const entries = hooks.PreToolUse ?? []
+    const wantUrl = `http://${MARKER}pretool`
+    let present = false
+    for (const e of entries) {
+      for (const h of e.hooks ?? []) {
+        if (!h.url?.includes(MARKER)) continue
+        present = true
+        // refresh a stale variant from an older Kamino, and never leave the
+        // timeout unset — see pretoolEntry for why that matters
+        if (h.url !== wantUrl || h.timeout !== PRETOOL_TIMEOUT_S || e.matcher !== PRETOOL_MATCHER) {
+          h.url = wantUrl
+          h.timeout = PRETOOL_TIMEOUT_S
+          e.matcher = PRETOOL_MATCHER
+          installed.push('PreToolUse')
+        }
+      }
+    }
+    if (!present) {
+      entries.push(pretoolEntry() as never)
+      hooks.PreToolUse = entries
+      installed.push('PreToolUse')
+    }
+  }
 
   for (const [event, endpoint] of Object.entries(EVENTS)) {
     const entries = hooks[event] ?? []
@@ -60,7 +116,11 @@ export function installHooks(): { installed: string[]; settingsPath: string } {
 
   if (installed.length > 0) {
     settings.hooks = hooks
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf-8')
+    // temp file + rename, never a direct overwrite: the CLI reads this file on
+    // every session start, and a torn write would break all of them
+    const tmp = `${settingsPath}.kamino-${process.pid}.tmp`
+    fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n', 'utf-8')
+    fs.renameSync(tmp, settingsPath)
   }
   return { installed, settingsPath }
 }

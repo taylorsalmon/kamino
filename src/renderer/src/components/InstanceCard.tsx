@@ -64,7 +64,9 @@ export function InstanceCard(props: {
           {inst.now.queued.length > 0 && (
             <span className="queue-chip">⧗ {inst.now.queued.length} queued</span>
           )}
-          {inst.state !== 'dead' && <RotBar context={inst.context} now={now} />}
+          {inst.state !== 'dead' && (
+            <RotBar context={inst.context} now={now} sessionId={inst.sessionId} />
+          )}
         </span>
       </span>
     </button>

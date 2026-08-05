@@ -78,6 +78,21 @@ export function transcriptPath(cwd: string, sessionId: string): string {
   return path.join(PROJECTS_DIR, projectSlug(cwd), `${sessionId}.jsonl`)
 }
 
+/**
+ * Display identity for a working folder. A clone launched with --worktree runs
+ * in <repo>/.claude/worktrees/<name>, so the plain last-segment rule would
+ * label it "fix-thing" and lose which repo that even is — exactly the thing you
+ * need when three clones share one project.
+ */
+export function describeCwd(cwd: string): { repo: string; worktree?: string } {
+  const parts = cwd.split(/[\\/]/).filter(Boolean)
+  const at = parts.findIndex((p, i) => p === 'worktrees' && parts[i - 1] === '.claude')
+  if (at > 0 && at + 1 < parts.length) {
+    return { repo: parts[at - 2] ?? cwd, worktree: parts[at + 1] }
+  }
+  return { repo: parts[parts.length - 1] ?? cwd }
+}
+
 // ---------------------------------------------------------------------------
 // Transcript records (.jsonl lines)
 // ---------------------------------------------------------------------------
