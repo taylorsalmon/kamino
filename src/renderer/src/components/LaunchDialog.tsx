@@ -19,6 +19,10 @@ export function LaunchDialog(props: {
   const [autoShip, setAutoShip] = useState(
     () => localStorage.getItem('fleet:auto-ship') !== 'off'
   )
+  // its own worktree: a folder has one checked-out branch, so clones sharing
+  // one land in the same branch and the same PR however well they behave
+  const [worktree, setWorktree] = useState(false)
+  const [worktreeName, setWorktreeName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const now = Date.now()
@@ -44,7 +48,9 @@ export function LaunchDialog(props: {
         cwd,
         initialPrompt: prompt.trim() || undefined,
         permissionMode: permissionMode === 'default' ? undefined : permissionMode,
-        autoShip
+        autoShip,
+        worktree,
+        worktreeName: worktree ? worktreeName.trim() || undefined : undefined
       })
       props.onLaunched(info.ptyId, info.pid)
     } catch (e) {
@@ -132,6 +138,32 @@ export function LaunchDialog(props: {
                 <option value="bypassPermissions">auto — never asks, full autonomy</option>
               </select>
             </div>
+            <label className="field auto-ship" title="git worktree add — its own directory and branch off this repo">
+              <span className="auto-ship-top">
+                <input
+                  type="checkbox"
+                  checked={worktree}
+                  onChange={(e) => setWorktree(e.target.checked)}
+                />
+                <span className="section-label">Own worktree — its own branch and PR</span>
+              </span>
+              <span className="auto-ship-note">
+                A folder has one checked-out branch, so clones sharing one commit to the same branch
+                and land in one PR no matter how carefully they work. Give this clone its own tree
+                and it gets its own branch, its own PR, and can&apos;t collide with a sibling at all.
+                Needs a git repo.
+              </span>
+              {worktree && (
+                <input
+                  className="worktree-name"
+                  type="text"
+                  placeholder="worktree name (optional) — e.g. rot-bar-fix"
+                  value={worktreeName}
+                  onChange={(e) => setWorktreeName(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )}
+            </label>
             <label className="field auto-ship" title="Appended to the clone's system prompt, so it holds for the whole session">
               <span className="auto-ship-top">
                 <input

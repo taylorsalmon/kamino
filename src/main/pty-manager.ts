@@ -17,6 +17,15 @@ export interface SpawnOptions {
   /** standing orders: ship finished work without being asked. Defaults on —
    *  pass false to commission a clone that leaves shipping to you. */
   autoShip?: boolean
+  /**
+   * Give this clone its own git worktree (--worktree), optionally named. One
+   * working tree each is what makes several clones on one repo genuinely
+   * parallel: a folder has a single checked-out branch, so clones sharing one
+   * commit onto the same branch and land in the same PR no matter how well
+   * they behave. Separate worktrees mean separate branches and separate PRs.
+   */
+  worktree?: boolean
+  worktreeName?: string
   cols?: number
   rows?: number
 }
@@ -71,6 +80,11 @@ export class PtyManager extends EventEmitter {
     if (opts.resumeSessionId) args.push('--resume', opts.resumeSessionId)
     if (opts.permissionMode && opts.permissionMode !== 'default') {
       args.push('--permission-mode', opts.permissionMode)
+    }
+    if (opts.worktree) {
+      const name = opts.worktreeName?.trim()
+      args.push('--worktree')
+      if (name) args.push(name)
     }
     if (opts.autoShip !== false) args.push('--append-system-prompt', AUTO_SHIP_ORDERS)
     // the prompt goes last: everything after it would be read as more prompt

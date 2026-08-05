@@ -14,6 +14,7 @@ import { transcriptTail } from './transcript-peek'
 import { checkRepo } from './wrapup'
 import { HandoffRunner } from './handoff'
 import { Deconflictor } from './deconflict'
+import { ensureWorktreeIgnored } from './worktree'
 import type {
   DeconflictEvent,
   DeconflictMode,
@@ -208,13 +209,18 @@ app.whenReady().then(() => {
   })
 
   // ── ptys ─────────────────────────────────────────────────────────────
-  ipcMain.handle('pty:spawn', (_e, req: LaunchRequest) => {
+  ipcMain.handle('pty:spawn', async (_e, req: LaunchRequest) => {
+    // before the tree exists, so the parent repo never reports it as untracked
+    // and no clone can stage a second checkout into its own commit
+    if (req.worktree) await ensureWorktreeIgnored(req.cwd)
     return ptys.spawn({
       cwd: req.cwd,
       resumeSessionId: req.resumeSessionId,
       initialPrompt: req.initialPrompt,
       permissionMode: req.permissionMode,
-      autoShip: req.autoShip
+      autoShip: req.autoShip,
+      worktree: req.worktree,
+      worktreeName: req.worktreeName
     })
   })
   ipcMain.on('pty:input', (_e, ptyId: string, data: string) => ptys.write(ptyId, data))

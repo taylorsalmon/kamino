@@ -91,8 +91,11 @@ export interface Instance {
   sessionId: string
   pid: number
   cwd: string
-  /** Last path segment of cwd, for display */
+  /** The repo's own folder name — for a worktree clone, the PARENT repo's, not
+   *  the worktree directory's, so several clones on one project stay legible */
   repo: string
+  /** set when this clone runs in its own git worktree (.claude/worktrees/<name>) */
+  worktree?: string
   gitBranch: string
   name: string
   kind: InstanceKind
@@ -205,6 +208,9 @@ export interface LaunchRequest {
   /** standing orders to commit, push and raise a PR when work is done.
    *  Omitted = on; only an explicit false turns it off. */
   autoShip?: boolean
+  /** give this clone its own git worktree, so it gets its own branch and PR */
+  worktree?: boolean
+  worktreeName?: string
 }
 
 export interface PtyInfo {

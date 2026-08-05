@@ -1221,6 +1221,11 @@ body.pane-resizing .terminal-view {
 .pane-kind[data-kind='background'] {
   color: var(--ghost);
 }
+/* its own worktree: isolated by construction, so it reads as reassurance */
+.pane-kind[data-kind='worktree'] {
+  color: var(--sage);
+  text-transform: none;
+}
 .pane-quotes {
   display: flex;
   flex-direction: column;
@@ -2204,6 +2209,20 @@ body.pane-resizing .terminal-view {
   line-height: 1.5;
   color: var(--faint);
   padding-left: 22px;
+}
+.worktree-name {
+  margin-left: 22px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg0);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.worktree-name:focus {
+  outline: none;
+  border-color: var(--clay);
 }
 
 /* ── Reincarnation — transfer to a fresh clone, or compact in place ────── */

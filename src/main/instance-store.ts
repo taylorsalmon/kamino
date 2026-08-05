@@ -16,6 +16,7 @@ import {
   CLAUDE_DIR,
   SESSIONS_DIR,
   describeAssistant,
+  describeCwd,
   derivePendingAsk,
   extractContextTokens,
   extractPickerAnswers,
@@ -294,12 +295,13 @@ export class InstanceStore extends EventEmitter {
   }
 
   private createTracked(entry: SessionRegistryEntry): Tracked {
-    const repo = entry.cwd.split(/[\\/]/).filter(Boolean).pop() ?? entry.cwd
+    const { repo, worktree } = describeCwd(entry.cwd)
     const instance: Instance = {
       sessionId: entry.sessionId,
       pid: entry.pid,
       cwd: entry.cwd,
       repo,
+      worktree,
       gitBranch: '',
       name: entry.name ?? repo,
       kind: this.rosterSessionIds.has(entry.sessionId) ? 'background' : 'external',

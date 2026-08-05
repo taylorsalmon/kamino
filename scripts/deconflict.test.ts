@@ -10,6 +10,7 @@
  * Run with: npm test
  */
 import { classifyGit, Deconflictor } from '../src/main/deconflict'
+import { describeCwd } from '../src/main/claude-data'
 
 let failed = 0
 
@@ -127,9 +128,29 @@ check('non-shell tools are ignored', d.decide({ sessionId: 'sess-B', cwd: REPO, 
 check('a shell command with no git is ignored', d.decide({ sessionId: 'sess-B', cwd: REPO, ...bash('npm run build') }), null)
 
 // ---------------------------------------------------------------------------
+// worktree display identity — a clone in <repo>/.claude/worktrees/<name> must
+// still report the REPO it belongs to, or three clones on one project become
+// three unrelated names on the board
+// ---------------------------------------------------------------------------
+check('plain folder', describeCwd('C:\\repos\\claude-fleet'), { repo: 'claude-fleet' })
+check('plain folder, forward slashes', describeCwd('/home/t/claude-fleet'), { repo: 'claude-fleet' })
+check('worktree keeps the repo name', describeCwd('C:\\repos\\claude-fleet\\.claude\\worktrees\\rot-fix'), {
+  repo: 'claude-fleet',
+  worktree: 'rot-fix'
+})
+check('worktree with forward slashes', describeCwd('/home/t/proj/.claude/worktrees/api'), {
+  repo: 'proj',
+  worktree: 'api'
+})
+check('trailing separator is harmless', describeCwd('C:\\repos\\claude-fleet\\'), { repo: 'claude-fleet' })
+// a folder literally called "worktrees" that is NOT under .claude must not be
+// mistaken for one
+check('unrelated worktrees folder', describeCwd('C:\\repos\\proj\\worktrees\\thing'), { repo: 'thing' })
+
+// ---------------------------------------------------------------------------
 if (failed > 0) {
   console.log(`\n${failed} check(s) failed`)
   process.exitCode = 1
 } else {
-  console.log(`deconflict: ${CASES.length} classifier cases + 18 decision checks passed`)
+  console.log(`deconflict: ${CASES.length} classifier cases + 18 decision + 6 worktree checks passed`)
 }
