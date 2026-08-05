@@ -1,4 +1,4 @@
-import type { AirspaceState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
+import type { AirspaceState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 declare global {
   interface Window {
@@ -22,6 +22,9 @@ declare global {
       wrapupCheck: () => Promise<WrapupReport>
       recap: (sessionId: string) => Promise<{ text: string; generatedAt: number; fromCache: boolean }>
       transcriptTail: (sessionId: string) => Promise<TranscriptTailMsg[]>
+      hyperdriveGet: () => Promise<HyperdriveState>
+      hyperdriveSet: (next: Partial<HyperdriveSettings>) => Promise<HyperdriveSettings>
+      onHyperdriveEvent: (cb: (ev: HyperdriveEvent) => void) => () => void
       airspaceGet: () => Promise<AirspaceState>
       airspaceSetMode: (mode: DeconflictMode) => Promise<DeconflictMode>
       onAirspaceEvent: (cb: (ev: DeconflictEvent) => void) => () => void

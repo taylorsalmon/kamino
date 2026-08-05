@@ -11,6 +11,8 @@
  */
 import { classifyGit, Deconflictor } from '../src/main/deconflict'
 import { describeCwd } from '../src/main/claude-data'
+import { Hyperdrive, type PrOwner } from '../src/main/hyperdrive'
+import type { PrStatus, PrStatusMap } from '../src/shared/types'
 
 let failed = 0
 
@@ -182,11 +184,172 @@ check('trailing separator is harmless', describeCwd('C:\\repos\\claude-fleet\\')
 check('unrelated worktrees folder', describeCwd('C:\\repos\\proj\\worktrees\\thing'), { repo: 'thing' })
 
 // ---------------------------------------------------------------------------
+// Hyperdrive — it types into real terminals, so the rules that keep it
+// trustworthy are the ones worth pinning down: transitions only, caps, and
+// never dropping an intent it could not deliver
+// ---------------------------------------------------------------------------
+const PR = 'https://github.com/o/r/pull/7'
+
+function pr(over: Partial<PrStatus> = {}): PrStatus {
+  return {
+    url: PR,
+    number: 7,
+    state: 'open',
+    isDraft: false,
+    reviewDecision: '',
+    checks: 'pass',
+    checksTotal: 3,
+    checksFailed: 0,
+    checksPending: 0,
+    mergeable: 'mergeable',
+    baseRef: 'main',
+    fetchedAt: 1,
+    ...over
+  }
+}
+const map = (p: PrStatus): PrStatusMap => ({ [p.url]: p })
+
+const reachable: PrOwner = { sessionId: 's1', name: 'Rex', ptyId: 'pty-1', awaitingUser: false, alive: true }
+
+function harness(owner: PrOwner | null = reachable) {
+  const sent: string[] = []
+  let current = owner
+  const hd = new Hyperdrive({ ownerOf: () => current, send: (_id, text) => sent.push(text) })
+  hd.setSettings({ ci: true, conflict: true, maxAttempts: 2 })
+  return { hd, sent, setOwner: (o: PrOwner | null) => (current = o) }
+}
+
+{
+  // the real sequence: a clone opens a PR, the first poll sees CI still running,
+  // the next sees it fail. That is the transition worth acting on.
+  const { hd, sent } = harness()
+  hd.onPrStatus(map(pr({ checks: 'pending', checksPending: 3 })))
+  check('CI merely running does not dispatch', sent.length, 0)
+  hd.onPrStatus(map(pr({ checks: 'fail', checksFailed: 1, fetchedAt: 2 })))
+  check('going red while watching dispatches', sent.length, 1)
+  check('CI orders forbid disabling tests', /do not disable/i.test(sent[0] ?? ''), true)
+  check('CI orders forbid force-push', /force-push/i.test(sent[0] ?? ''), true)
+}
+
+{
+  // a PR that was ALREADY red before Kamino started must never fire, however
+  // many sweeps go by: on restart the owning clones have usually moved on to
+  // other work, and a burst of orders would land mid-task
+  const { hd, sent } = harness()
+  hd.onPrStatus(map(pr({ checks: 'fail', checksFailed: 1 })))
+  hd.onPrStatus(map(pr({ checks: 'fail', checksFailed: 1, fetchedAt: 2 })))
+  hd.onPrStatus(map(pr({ checks: 'fail', checksFailed: 1, fetchedAt: 3 })))
+  check('a failure that predates Kamino is left alone', sent.length, 0)
+}
+
+{
+  const { hd, sent } = harness()
+  hd.onPrStatus(map(pr()))
+  hd.onPrStatus(map(pr({ mergeable: 'conflicting', fetchedAt: 2 })))
+  check('conflict dispatches once', sent.length, 1)
+  check('conflict orders say merge not rebase', /merge, do not rebase/i.test(sent[0] ?? ''), true)
+  check('conflict orders name the base branch', /origin\/main/.test(sent[0] ?? ''), true)
+  check('conflict orders protect the other side', /keeping BOTH intents/.test(sent[0] ?? ''), true)
+
+  // still conflicting on later sweeps — must not spam, the transition is spent
+  hd.onPrStatus(map(pr({ mergeable: 'conflicting', fetchedAt: 3 })))
+  check('a persisting conflict does not re-dispatch', sent.length, 1)
+}
+
+{
+  // caps: two attempts then it becomes yours
+  const { hd, sent } = harness()
+  hd.onPrStatus(map(pr()))
+  hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 2 })))
+  hd.onPrStatus(map(pr({ checks: 'pending', fetchedAt: 3 })))
+  hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 4 })))
+  check('two failures, two dispatches', sent.length, 2)
+  hd.onPrStatus(map(pr({ checks: 'pending', fetchedAt: 5 })))
+  hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 6 })))
+  check('third failure is not dispatched', sent.length, 2)
+  check('it logs that it gave up', hd.getState().events.some((e) => e.outcome === 'exhausted'), true)
+}
+
+{
+  // recovering restores the budget, so a later regression is still handled
+  const { hd, sent } = harness()
+  hd.onPrStatus(map(pr()))
+  hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 2 })))
+  hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 3 })))
+  hd.onPrStatus(map(pr({ checks: 'pass', fetchedAt: 4 }))) // went green
+  hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 5 })))
+  check('budget resets after recovery', sent.length, 2)
+}
+
+{
+  // an unreachable clone must hold the intent, not lose it
+  const h = harness({ ...reachable, ptyId: null })
+  h.hd.onPrStatus(map(pr()))
+  h.hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 2 })))
+  check('an unreachable clone gets nothing sent', h.sent.length, 0)
+  check('the intent is kept, not dropped', h.hd.getState().pending.length, 1)
+  check('the hold is logged once', h.hd.getState().events.filter((e) => e.outcome === 'blocked').length, 1)
+  h.hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 3 })))
+  check('holding does not spam the log', h.hd.getState().events.filter((e) => e.outcome === 'blocked').length, 1)
+  // once it becomes reachable the held intent goes out
+  h.setOwner(reachable)
+  h.hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 4 })))
+  check('a held intent is delivered when the clone is reachable', h.sent.length, 1)
+}
+
+{
+  // a clone waiting on the user is left alone until it is free
+  const h = harness({ ...reachable, awaitingUser: true })
+  h.hd.onPrStatus(map(pr()))
+  h.hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 2 })))
+  check('a clone awaiting your decision is not interrupted', h.sent.length, 0)
+  h.setOwner(reachable)
+  h.hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 3 })))
+  check('it is dispatched once the clone is free', h.sent.length, 1)
+}
+
+{
+  // switches off means nothing happens at all
+  const sent: string[] = []
+  const hd = new Hyperdrive({ ownerOf: () => reachable, send: (_i, t) => sent.push(t) })
+  hd.onPrStatus(map(pr()))
+  hd.onPrStatus(map(pr({ checks: 'fail', mergeable: 'conflicting', fetchedAt: 2 })))
+  check('both switches default to off', sent.length, 0)
+  check('nothing is even queued while off', hd.getState().pending.length, 0)
+}
+
+{
+  // turning a switch off drops what it had queued, rather than firing later
+  const h = harness({ ...reachable, ptyId: null })
+  h.hd.onPrStatus(map(pr()))
+  h.hd.onPrStatus(map(pr({ checks: 'fail', fetchedAt: 2 })))
+  check('intent is queued while held', h.hd.getState().pending.length, 1)
+  h.hd.setSettings({ ci: false })
+  check('switching off clears the queue', h.hd.getState().pending.length, 0)
+}
+
+{
+  // a stale carry-forward reading is not evidence of anything
+  const { hd, sent } = harness()
+  hd.onPrStatus(map(pr()))
+  hd.onPrStatus(map(pr({ checks: 'fail', stale: true, fetchedAt: 2 })))
+  check('stale readings are ignored', sent.length, 0)
+}
+
+{
+  // merged and closed PRs are forgotten, not fixed
+  const { hd, sent } = harness()
+  hd.onPrStatus(map(pr()))
+  hd.onPrStatus(map(pr({ state: 'merged', checks: 'fail', fetchedAt: 2 })))
+  check('a merged PR is left alone', sent.length, 0)
+}
+
+// ---------------------------------------------------------------------------
 if (failed > 0) {
   console.log(`\n${failed} check(s) failed`)
   process.exitCode = 1
 } else {
   console.log(
-    `deconflict: ${CASES.length} classifier cases + 18 decision + 9 contention + 6 worktree checks passed`
+    `all green: ${CASES.length} git-classifier cases + 18 airspace decision + 9 contention + 6 worktree + 27 hyperdrive checks`
   )
 }

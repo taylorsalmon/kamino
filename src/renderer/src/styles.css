@@ -2018,6 +2018,86 @@ body.pane-resizing .terminal-view {
   box-shadow: 0 0 0 2px var(--clay-dim);
 }
 
+/* ── Hyperdrive ───────────────────────────────────────────────────────── */
+.modal.hyperdrive {
+  width: min(760px, 95vw);
+}
+.hd-lamp {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--ghost);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 1px 6px;
+  align-self: center;
+  margin-left: 10px;
+}
+.hd-lamp.on {
+  color: var(--clay);
+}
+.hd-intro {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+.hd-switches {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+@media (max-width: 680px) {
+  .hd-switches {
+    grid-template-columns: 1fr;
+  }
+}
+.hd-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg1);
+  cursor: pointer;
+}
+.hd-switch.on {
+  border-color: var(--clay);
+  background: var(--bg2);
+}
+.hd-switch-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hd-switch-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.hd-switch-body {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.hd-switch-body b {
+  color: var(--text);
+}
+.hd-attempts {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+.hd-attempts .view-btn {
+  min-width: 26px;
+}
+
 /* ── Airspace control ─────────────────────────────────────────────────── */
 .modal.airspace {
   width: min(760px, 95vw);

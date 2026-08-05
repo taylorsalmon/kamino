@@ -20,6 +20,13 @@ interface RollupNode {
   state?: string
 }
 
+function normalizeMergeable(s: unknown): PrStatus['mergeable'] {
+  const v = typeof s === 'string' ? s.toUpperCase() : ''
+  if (v === 'CONFLICTING') return 'conflicting'
+  if (v === 'MERGEABLE') return 'mergeable'
+  return 'unknown' // gh reports UNKNOWN while GitHub is still computing the merge
+}
+
 function normalizeState(s: unknown): PrStatus['state'] {
   const v = typeof s === 'string' ? s.toUpperCase() : ''
   if (v === 'OPEN') return 'open'
@@ -124,7 +131,7 @@ export class PrStatusPoller extends EventEmitter {
     return new Promise((resolve) => {
       execFile(
         'gh',
-        ['pr', 'view', url, '--json', 'number,state,isDraft,reviewDecision,statusCheckRollup'],
+        ['pr', 'view', url, '--json', 'number,state,isDraft,reviewDecision,statusCheckRollup,mergeable,baseRefName'],
         { timeout: GH_TIMEOUT_MS, windowsHide: true },
         (err, stdout, stderr) => {
           const numberFromUrl = Number(url.match(/\/pull\/(\d+)/)?.[1] ?? 0)
@@ -152,6 +159,8 @@ export class PrStatusPoller extends EventEmitter {
               checksTotal: 0,
               checksFailed: 0,
               checksPending: 0,
+              mergeable: 'unknown',
+              baseRef: '',
               fetchedAt: Date.now(),
               error
             })
@@ -167,6 +176,8 @@ export class PrStatusPoller extends EventEmitter {
               isDraft: !!d.isDraft,
               reviewDecision: typeof d.reviewDecision === 'string' ? d.reviewDecision : '',
               ...summarizeChecks(rollup),
+              mergeable: normalizeMergeable(d.mergeable),
+              baseRef: typeof d.baseRefName === 'string' ? d.baseRefName : '',
               fetchedAt: Date.now()
             })
           } catch {

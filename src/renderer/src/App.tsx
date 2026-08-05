@@ -9,6 +9,7 @@ import { GridPane } from './components/GridPane'
 import { CheatSheet } from './components/CheatSheet'
 import { HandoffDialog } from './components/HandoffDialog'
 import { AirspaceDialog } from './components/AirspaceDialog'
+import { HyperdriveDialog } from './components/HyperdriveDialog'
 import { focusTerminal, setTermFontSize } from './terminals'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
@@ -61,6 +62,7 @@ export default function App(): React.JSX.Element {
   const [showInfo, setShowInfo] = useState(false)
   const [showWrapup, setShowWrapup] = useState(false)
   const [showAirspace, setShowAirspace] = useState(false)
+  const [showHyperdrive, setShowHyperdrive] = useState(false)
   const [showCheats, setShowCheats] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<ViewMode>(
@@ -597,6 +599,18 @@ export default function App(): React.JSX.Element {
                   className="menu-item"
                   onClick={() => {
                     setMenuOpen(false)
+                    setShowHyperdrive(true)
+                  }}
+                >
+                  <span className="menu-item-title">⚡ Hyperdrive</span>
+                  <span className="menu-item-sub">
+                    send a clone back in when its PR goes red or stops merging — off by default
+                  </span>
+                </button>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenuOpen(false)
                     setShowAirspace(true)
                   }}
                 >
@@ -925,6 +939,7 @@ export default function App(): React.JSX.Element {
           onSuccessor={onLaunched}
         />
       )}
+      {showHyperdrive && <HyperdriveDialog onClose={() => setShowHyperdrive(false)} now={now} />}
       {showAirspace && <AirspaceDialog onClose={() => setShowAirspace(false)} now={now} />}
       {showCheats && <CheatSheet onClose={() => setShowCheats(false)} />}
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
