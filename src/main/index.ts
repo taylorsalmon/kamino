@@ -15,11 +15,14 @@ import { checkRepo } from './wrapup'
 import { HandoffRunner } from './handoff'
 import { Deconflictor } from './deconflict'
 import { ensureWorktreeIgnored } from './worktree'
+import { Hyperdrive, type PrOwner } from './hyperdrive'
 import type {
   DeconflictEvent,
   DeconflictMode,
   FleetSnapshot,
   HandoffProgress,
+  HyperdriveEvent,
+  HyperdriveSettings,
   Instance,
   LaunchRequest
 } from '../shared/types'
@@ -30,6 +33,26 @@ const hookServer = new HookServer()
 const prPoller = new PrStatusPoller()
 const handoff = new HandoffRunner(ptys, store)
 const deconflictor = new Deconflictor(path.join(app.getPath('userData'), 'airspace.json'))
+
+/** Which live clone raised a PR, and whether its terminal can be reached. */
+function prOwner(prUrl: string): PrOwner | null {
+  for (const inst of store.snapshot().instances) {
+    if (!inst.recent.prs.some((p) => p.url === prUrl)) continue
+    return {
+      sessionId: inst.sessionId,
+      name: inst.name,
+      ptyId: ptys.ptyIdForPid(inst.pid),
+      awaitingUser: inst.state === 'needs-you',
+      alive: inst.state !== 'dead'
+    }
+  }
+  return null
+}
+
+const hyperdrive = new Hyperdrive(
+  { ownerOf: prOwner, send: (ptyId, text) => ptys.write(ptyId, text) },
+  path.join(app.getPath('userData'), 'hyperdrive.json')
+)
 let win: BrowserWindow | null = null
 
 const LONG_TURN_MS = 30_000
@@ -158,7 +181,22 @@ app.whenReady().then(() => {
     prPoller.setWatched(snap.instances.flatMap((i) => i.recent.prs.map((p) => p.url)))
   })
   prPoller.start()
-  prPoller.on('update', (map) => broadcast('pr:status', map))
+  prPoller.on('update', (map) => {
+    broadcast('pr:status', map)
+    hyperdrive.onPrStatus(map)
+  })
+  hyperdrive.on('event', (ev: HyperdriveEvent) => {
+    broadcast('hyperdrive:event', ev)
+    if (ev.outcome === 'sent') {
+      notify(
+        `Hyperdrive — ${ev.cloneName}`,
+        ev.kind === 'ci'
+          ? `PR #${ev.prNumber} CI was red; sent it back to fix (try ${ev.attempt})`
+          : `PR #${ev.prNumber} stopped merging; sent it back to resolve (try ${ev.attempt})`,
+        ev.sessionId
+      )
+    }
+  })
   hookServer.start()
   hookServer.on('hook', onHook)
 
@@ -283,6 +321,12 @@ app.whenReady().then(() => {
     if (mode === 'off' || mode === 'warn' || mode === 'enforce') deconflictor.setMode(mode)
     return deconflictor.getMode()
   })
+
+  // ── hyperdrive: automatic fixes ──────────────────────────────────────
+  ipcMain.handle('hyperdrive:get', () => hyperdrive.getState())
+  ipcMain.handle('hyperdrive:set', (_e, next: Partial<HyperdriveSettings>) =>
+    hyperdrive.setSettings(next ?? {})
+  )
 
   // ── hover peek: last few transcript exchanges ────────────────────────
   ipcMain.handle('transcript:tail', (_e, sessionId: string) => {

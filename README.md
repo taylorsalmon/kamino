@@ -69,6 +69,17 @@ Shortcuts work everywhere — even while a terminal owns the keyboard. <kbd>F1</
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | End-of-shift sweep |
 | <kbd>F1</kbd> | Cheat sheet |
 
+## Hyperdrive — automatic fixes
+
+Both switches are **off** until you turn them on (⋯ menu → ⚡ Hyperdrive). A clone ends its turn the moment it opens a PR, but CI takes minutes — so by the time the checks go red the clone is idle and nothing wakes it. With several clones shipping into one repo it's worse: the first PR to merge leaves the rest unmergeable and they all sit there.
+
+- **Fix red CI** — checks fail → the clone that raised the PR is told to fetch the failing logs, fix the real cause and push; explicitly not to disable, skip or weaken tests, and never to force-push. If it can't reproduce the failure it's told to stop and say so rather than guess.
+- **Resolve merge conflicts** — the branch stops merging into its base → the clone is told to merge the base back in (merge, not rebase; no force-push, since the branch is already pushed) and to keep **both** intents where they're compatible, because the other side is somebody else's finished work. A genuine design clash comes back to you.
+
+Both triggers are facts GitHub reports, never inferences about what a clone is "probably" doing — that distinction is the whole design. Guessing "is it stuck?" or "should it hand off now?" means sometimes interrupting a clone that was working fine, and one wrong interruption costs more trust than ten right ones earn.
+
+The rules that keep it honest: it acts on an observed **transition** only, so a PR that was already red before Kamino started is never touched (on restart the owning clones have usually moved on, and a burst of orders would land mid-task); an intent it can't deliver is held and retried rather than dropped; a clone waiting on a decision of yours is left alone; attempts are capped per PR and the budget resets only if the PR recovers; and every action *and every skip* is logged, because an automation you can't audit is one you can't trust. Orders go into the clone's own terminal, so you can read exactly what it was told and take over. `npm test` covers all of it.
+
 ## Keeping clones from killing each other
 
 - **Own worktree** — a launch-dialog checkbox that gives the clone its own git worktree (`claude --worktree`, tree at `<repo>/.claude/worktrees/<name>` on branch `worktree-<name>`). This is the real answer to running several clones on one repo: a folder has a single checked-out branch, so clones sharing one commit to the same branch and land in one PR however carefully they work. Separate trees mean separate branches, separate PRs, and no possibility of collision. Cards keep showing the parent repo's name (not the worktree directory's) with a green `⑄ name` chip, so three clones on one project stay legible. Kamino also adds `.claude/worktrees/` to the repo's `.git/info/exclude` first — git does not ignore a nested worktree, and otherwise a clone with standing orders would `git add -A` an entire second checkout into its commit.
@@ -112,6 +123,7 @@ src/main/
   hook-installer.ts    idempotent ~/.claude/settings.json hook patch
   deconflict.ts        airspace control: who is mid-edit where, git classifier
   worktree.ts          keeps a repo from staging its own nested worktrees
+  hyperdrive.ts        automatic fixes for red CI and merge conflicts
   recap.ts             "catch me up" via claude -p (haiku)
   handoff.ts           reincarnation: brief → successor → seed, and /compact
 src/renderer/          React UI (the wall, roster cards, dialogs)

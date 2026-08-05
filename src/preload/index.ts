@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AirspaceState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
+import type { AirspaceState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 const api = {
   // fleet status
@@ -64,6 +64,16 @@ const api = {
     const listener = (_e: unknown, ev: DeconflictEvent): void => cb(ev)
     ipcRenderer.on('airspace:event', listener)
     return () => ipcRenderer.removeListener('airspace:event', listener)
+  },
+
+  // hyperdrive: automatic fixes for red CI and merge conflicts
+  hyperdriveGet: (): Promise<HyperdriveState> => ipcRenderer.invoke('hyperdrive:get'),
+  hyperdriveSet: (next: Partial<HyperdriveSettings>): Promise<HyperdriveSettings> =>
+    ipcRenderer.invoke('hyperdrive:set', next),
+  onHyperdriveEvent: (cb: (ev: HyperdriveEvent) => void): (() => void) => {
+    const listener = (_e: unknown, ev: HyperdriveEvent): void => cb(ev)
+    ipcRenderer.on('hyperdrive:event', listener)
+    return () => ipcRenderer.removeListener('hyperdrive:event', listener)
   },
 
   // reincarnation: brief → successor → seed

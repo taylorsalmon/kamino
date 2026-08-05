@@ -31,6 +31,11 @@ export interface PrStatus {
   checksTotal: number
   checksFailed: number
   checksPending: number
+  /** 'conflicting' means it can no longer merge into its base — a fact, not an
+   *  inference, which is why Hyperdrive is willing to act on it */
+  mergeable: 'mergeable' | 'conflicting' | 'unknown'
+  /** the branch this PR targets, for the merge instruction */
+  baseRef: string
   fetchedAt: number
   error?: string
   /** True when this is a carried-forward last-known status because the latest gh poll failed. */
@@ -188,6 +193,49 @@ export interface AirspaceState {
   contested: ContestedFile[]
   /** running total of collisions actually denied (survives restarts) */
   prevented: number
+}
+
+/**
+ * Hyperdrive — automatic fixes dispatched to the clone that raised a PR, while
+ * you are not watching. Only ever triggered by facts (checks red, branch
+ * conflicting), never by inference about what a clone is "probably" doing.
+ */
+export type HyperdriveKind = 'ci' | 'conflict'
+
+export interface HyperdriveSettings {
+  /** checks go red → tell the clone to fix the cause */
+  ci: boolean
+  /** branch stops merging into its base → tell the clone to merge and resolve */
+  conflict: boolean
+  /** attempts per PR per kind before it stops and leaves it to you */
+  maxAttempts: number
+}
+
+/** One automatic dispatch, or a reason one was skipped. Every entry is
+ *  auditable — an automation you cannot inspect is one you cannot trust. */
+export interface HyperdriveEvent {
+  id: string
+  at: number
+  kind: HyperdriveKind
+  prUrl: string
+  prNumber: number
+  cloneName: string
+  sessionId: string
+  attempt: number
+  /** 'sent' — orders went into the clone's terminal.
+   *  'blocked' — nothing could be dispatched (see note); the intent is kept.
+   *  'exhausted' — out of attempts, now yours. */
+  outcome: 'sent' | 'blocked' | 'exhausted'
+  note?: string
+}
+
+export interface HyperdriveState {
+  settings: HyperdriveSettings
+  events: HyperdriveEvent[]
+  /** PR urls waiting on a clone that could not be reached yet */
+  pending: Array<{ prUrl: string; kind: HyperdriveKind; since: number }>
+  /** total orders dispatched, across restarts */
+  dispatched: number
 }
 
 /** One message in the hover-peek transcript tail. */
