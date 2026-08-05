@@ -327,6 +327,55 @@ body {
   line-height: 1.7;
 }
 
+/* decommissioned clones fold away so the live fleet stays on top */
+.roster-fold {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.roster-fold-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--line);
+  padding: 10px 4px 2px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.roster-fold-head:hover {
+  color: var(--text);
+}
+
+.roster-fold-head .fold-arrow {
+  width: 12px;
+}
+
+.roster-fold-head .fold-count {
+  border: 1px solid var(--line-bright);
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.roster-fold .card {
+  opacity: 0.75;
+}
+
+.roster-fold .card.selected {
+  opacity: 1;
+}
+
 /* ── Instance card ────────────────────────────────────────────────────── */
 
 .card {
