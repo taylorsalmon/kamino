@@ -143,6 +143,11 @@ export default function App(): React.JSX.Element {
 
   const [hooksOk, setHooksOk] = useState(true)
 
+  // Focus roster: decommissioned clones fold away behind an accordion so the
+  // live fleet isn't buried under history. Closed by default; auto-opens if
+  // the clone you're looking at dies, so its card never vanishes underneath you.
+  const [showDecommissioned, setShowDecommissioned] = useState(false)
+
   // clicking Clawd (the rot meter) anywhere opens the reincarnation dialog —
   // RotBar sits inside clickable cards, so it asks via a window event rather
   // than a callback threaded through three components
@@ -422,6 +427,12 @@ export default function App(): React.JSX.Element {
     if (selectedInstance) return ptyByPid.get(selectedInstance.pid) ?? null
     return ptyRefs.find((p) => p.ptyId === selectedId) ?? null
   }, [selectedInstance, ptyByPid, ptyRefs, selectedId])
+
+  // if the clone on screen gets decommissioned, unfold the accordion so its
+  // card stays reachable instead of disappearing into a closed fold
+  useEffect(() => {
+    if (selectedInstance?.state === 'dead') setShowDecommissioned(true)
+  }, [selectedInstance?.state])
 
   // let main know which card is on screen so it can skip redundant toasts
   useEffect(() => {
@@ -763,19 +774,50 @@ export default function App(): React.JSX.Element {
               Commission one with “+ Commission clone”, or start one in any terminal and it appears here.
             </div>
           ) : (
-            snap.instances.map((inst: Instance) => (
-              <InstanceCard
-                key={inst.sessionId}
-                instance={inst}
-                now={now}
-                selected={inst.sessionId === selectedId}
-                prStatus={prStatus}
-                onSelect={() => {
-                  setSelectedId(inst.sessionId)
-                  setShowInfo(false)
-                }}
-              />
-            ))
+            snap.instances
+              .filter((i) => i.state !== 'dead')
+              .map((inst: Instance) => (
+                <InstanceCard
+                  key={inst.sessionId}
+                  instance={inst}
+                  now={now}
+                  selected={inst.sessionId === selectedId}
+                  prStatus={prStatus}
+                  onSelect={() => {
+                    setSelectedId(inst.sessionId)
+                    setShowInfo(false)
+                  }}
+                />
+              ))
+          )}
+          {counts.dead > 0 && (
+            <div className="roster-fold">
+              <button
+                className="roster-fold-head"
+                title={showDecommissioned ? 'Fold away' : 'Show decommissioned clones'}
+                onClick={() => setShowDecommissioned((v) => !v)}
+              >
+                <span className="fold-arrow">{showDecommissioned ? '▾' : '▸'}</span>
+                Decommissioned
+                <span className="fold-count">{counts.dead}</span>
+              </button>
+              {showDecommissioned &&
+                snap.instances
+                  .filter((i) => i.state === 'dead')
+                  .map((inst: Instance) => (
+                    <InstanceCard
+                      key={inst.sessionId}
+                      instance={inst}
+                      now={now}
+                      selected={inst.sessionId === selectedId}
+                      prStatus={prStatus}
+                      onSelect={() => {
+                        setSelectedId(inst.sessionId)
+                        setShowInfo(false)
+                      }}
+                    />
+                  ))}
+            </div>
           )}
         </aside>
 
