@@ -285,6 +285,7 @@ export class InstanceStore extends EventEmitter {
         t.diedAt = now
         t.tailer?.stop()
         t.tailer = null
+        this.emit('died', sessionId)
       } else if (t.diedAt && now - t.diedAt > DEAD_RETENTION_MS) {
         this.tracked.delete(sessionId)
       }
@@ -462,7 +463,11 @@ export class InstanceStore extends EventEmitter {
         const content = rec.message?.content
         if (Array.isArray(content)) {
           for (const blk of content) {
-            if (blk?.type === 'tool_use' && blk.name) t.lastToolUse = { id: blk.id, name: blk.name, input: blk.input }
+            if (blk?.type === 'tool_use' && blk.name) {
+              t.lastToolUse = { id: blk.id, name: blk.name, input: blk.input }
+              // airspace control watches these to know who is mid-edit where
+              this.emit('tool-use', inst, blk.name, blk.input)
+            }
           }
         }
         const d = describeAssistant(rec)

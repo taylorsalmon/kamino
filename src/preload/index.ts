@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { FleetSnapshot, HandoffProgress, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
+import type { AirspaceState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 const api = {
   // fleet status
@@ -55,6 +55,16 @@ const api = {
   // hover peek: last few transcript exchanges
   transcriptTail: (sessionId: string): Promise<TranscriptTailMsg[]> =>
     ipcRenderer.invoke('transcript:tail', sessionId),
+
+  // airspace control: git deconfliction across clones
+  airspaceGet: (): Promise<AirspaceState> => ipcRenderer.invoke('airspace:get'),
+  airspaceSetMode: (mode: DeconflictMode): Promise<DeconflictMode> =>
+    ipcRenderer.invoke('airspace:set-mode', mode),
+  onAirspaceEvent: (cb: (ev: DeconflictEvent) => void): (() => void) => {
+    const listener = (_e: unknown, ev: DeconflictEvent): void => cb(ev)
+    ipcRenderer.on('airspace:event', listener)
+    return () => ipcRenderer.removeListener('airspace:event', listener)
+  },
 
   // reincarnation: brief → successor → seed
   handoffStart: (sessionId: string, killOld: boolean): Promise<void> =>

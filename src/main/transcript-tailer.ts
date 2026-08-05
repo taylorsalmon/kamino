@@ -1,13 +1,23 @@
 /**
  * TranscriptTailer — incremental reader for one session's .jsonl transcript.
  *
- * On attach it reads the whole file once (a few MB at worst) to build the
- * session's history (title, PRs, last prompt, turn count), then follows the
- * file by byte offset — appended lines only, never re-reading. Handles torn
- * final lines by buffering the partial tail until the next flush completes it.
+ * On attach it catches up on the file's tail to build the session's history
+ * (title, PRs, last prompt, turn count), then follows the file by byte offset —
+ * appended lines only, never re-reading. Handles torn final lines by buffering
+ * the partial tail until the next flush completes it.
+ *
+ * Reads are synchronous and on the main thread, so no single read may be
+ * unbounded: a long session with big tool outputs runs to tens or hundreds of
+ * MB, and at startup this happens once per live session. Anything beyond
+ * MAX_CATCHUP is skipped — the cost is that a very long session's earliest
+ * history (its first title, PRs raised long ago, early turns) is missed, which
+ * is a fair trade against freezing the UI and the hook server.
  */
 import * as fs from 'node:fs'
 import { parseRecord, type TranscriptRecord } from './claude-data'
+
+/** most bytes any one read will pull off disk */
+const MAX_CATCHUP = 3 * 1024 * 1024
 
 export class TranscriptTailer {
   private offset = 0
@@ -63,14 +73,25 @@ export class TranscriptTailer {
       }
       if (size === this.offset) return
 
+      // skip ahead when there is more to catch up on than we will read in one
+      // go — the first surviving line is then torn, so drop it
+      let start = this.offset
+      let skipTorn = false
+      if (size - start > MAX_CATCHUP) {
+        start = size - MAX_CATCHUP
+        this.partial = ''
+        skipTorn = true
+      }
+
       const fd = fs.openSync(this.filePath, 'r')
       try {
-        const len = size - this.offset
+        const len = size - start
         const buf = Buffer.alloc(len)
-        fs.readSync(fd, buf, 0, len, this.offset)
+        fs.readSync(fd, buf, 0, len, start)
         this.offset = size
         const chunk = this.partial + buf.toString('utf-8')
         const lines = chunk.split('\n')
+        if (skipTorn) lines.shift()
         this.partial = lines.pop() ?? '' // last element is '' on a clean trailing \n
         let emitted = false
         for (const line of lines) {

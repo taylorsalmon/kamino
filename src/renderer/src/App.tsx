@@ -8,6 +8,7 @@ import { WrapupDialog } from './components/WrapupDialog'
 import { GridPane } from './components/GridPane'
 import { CheatSheet } from './components/CheatSheet'
 import { HandoffDialog } from './components/HandoffDialog'
+import { AirspaceDialog } from './components/AirspaceDialog'
 import { focusTerminal, setTermFontSize } from './terminals'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
@@ -59,6 +60,7 @@ export default function App(): React.JSX.Element {
   const [showLaunch, setShowLaunch] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [showWrapup, setShowWrapup] = useState(false)
+  const [showAirspace, setShowAirspace] = useState(false)
   const [showCheats, setShowCheats] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<ViewMode>(
@@ -595,6 +597,18 @@ export default function App(): React.JSX.Element {
                   className="menu-item"
                   onClick={() => {
                     setMenuOpen(false)
+                    setShowAirspace(true)
+                  }}
+                >
+                  <span className="menu-item-title">🛡 Airspace control</span>
+                  <span className="menu-item-sub">
+                    stop one clone committing or destroying another&apos;s in-flight work
+                  </span>
+                </button>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenuOpen(false)
                     setShowCheats(true)
                   }}
                 >
@@ -911,6 +925,7 @@ export default function App(): React.JSX.Element {
           onSuccessor={onLaunched}
         />
       )}
+      {showAirspace && <AirspaceDialog onClose={() => setShowAirspace(false)} now={now} />}
       {showCheats && <CheatSheet onClose={() => setShowCheats(false)} />}
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
       {showWrapup && (

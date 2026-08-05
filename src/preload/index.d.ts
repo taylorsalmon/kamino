@@ -1,4 +1,4 @@
-import type { FleetSnapshot, HandoffProgress, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
+import type { AirspaceState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 declare global {
   interface Window {
@@ -22,6 +22,9 @@ declare global {
       wrapupCheck: () => Promise<WrapupReport>
       recap: (sessionId: string) => Promise<{ text: string; generatedAt: number; fromCache: boolean }>
       transcriptTail: (sessionId: string) => Promise<TranscriptTailMsg[]>
+      airspaceGet: () => Promise<AirspaceState>
+      airspaceSetMode: (mode: DeconflictMode) => Promise<DeconflictMode>
+      onAirspaceEvent: (cb: (ev: DeconflictEvent) => void) => () => void
       handoffStart: (sessionId: string, killOld: boolean) => Promise<void>
       handoffCancel: (sessionId: string) => Promise<void>
       handoffCompact: (sessionId: string) => Promise<boolean>

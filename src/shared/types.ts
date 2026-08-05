@@ -128,6 +128,48 @@ export interface HandoffProgress {
   error?: string
 }
 
+/**
+ * Airspace control. 'off' stands down entirely; 'warn' logs what it would have
+ * stopped but lets everything run; 'enforce' denies the tool call and hands the
+ * clone a reason it can act on.
+ */
+export type DeconflictMode = 'off' | 'warn' | 'enforce'
+
+/** A clone's in-flight edits in one folder. */
+export interface FileClaim {
+  sessionId: string
+  name: string
+  cwd: string
+  /** most recently touched files (capped for display) */
+  files: string[]
+  lastEditAt: number
+}
+
+/** One git operation that collided with a sibling's in-flight work. */
+export interface DeconflictEvent {
+  id: string
+  at: number
+  sessionId: string
+  cloneName: string
+  cwd: string
+  /** the git command as classified, e.g. "git add -A" */
+  command: string
+  risk: 'stage-all' | 'destructive'
+  /** names of the clones whose work was at risk */
+  siblings: string[]
+  siblingFiles: string[]
+  /** false in warn mode — logged, but the command still ran */
+  denied: boolean
+}
+
+export interface AirspaceState {
+  mode: DeconflictMode
+  claims: FileClaim[]
+  events: DeconflictEvent[]
+  /** running total of collisions actually denied (survives restarts) */
+  prevented: number
+}
+
 /** One message in the hover-peek transcript tail. */
 export interface TranscriptTailMsg {
   who: 'you' | 'clone'

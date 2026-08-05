@@ -13,13 +13,22 @@ import { PrStatusPoller } from './pr-status'
 import { transcriptTail } from './transcript-peek'
 import { checkRepo } from './wrapup'
 import { HandoffRunner } from './handoff'
-import type { FleetSnapshot, HandoffProgress, LaunchRequest } from '../shared/types'
+import { Deconflictor } from './deconflict'
+import type {
+  DeconflictEvent,
+  DeconflictMode,
+  FleetSnapshot,
+  HandoffProgress,
+  Instance,
+  LaunchRequest
+} from '../shared/types'
 
 const store = new InstanceStore(path.join(app.getPath('userData'), 'model-windows.json'))
 const ptys = new PtyManager()
 const hookServer = new HookServer()
 const prPoller = new PrStatusPoller()
 const handoff = new HandoffRunner(ptys, store)
+const deconflictor = new Deconflictor(path.join(app.getPath('userData'), 'airspace.json'))
 let win: BrowserWindow | null = null
 
 const LONG_TURN_MS = 30_000
@@ -152,6 +161,33 @@ app.whenReady().then(() => {
   hookServer.start()
   hookServer.on('hook', onHook)
 
+  // ── airspace control ─────────────────────────────────────────────────
+  // the ledger of who is mid-edit where, fed straight off the transcript
+  // stream, so the PreToolUse answer never needs disk or a subprocess
+  store.on('tool-use', (inst: Instance, name: string, input?: Record<string, unknown>) => {
+    deconflictor.noteToolUse(inst.sessionId, name, inst.name, inst.cwd, input)
+  })
+  store.on('died', (sessionId: string) => deconflictor.release(sessionId))
+  hookServer.setPreToolDecider((req) =>
+    deconflictor.decide({
+      sessionId: req.sessionId,
+      cwd: req.cwd || store.get(req.sessionId)?.cwd || '',
+      toolName: req.toolName,
+      input: req.input,
+      cloneName: store.get(req.sessionId)?.name
+    })
+  )
+  deconflictor.on('event', (ev: DeconflictEvent) => {
+    broadcast('airspace:event', ev)
+    if (ev.denied) {
+      notify(
+        `Collision stopped — ${ev.cloneName}`,
+        `${ev.command} would have hit ${ev.siblings.join(', ')}`,
+        ev.sessionId
+      )
+    }
+  })
+
   ptys.on('data', (ptyId: string, data: string) => broadcast('pty:data', ptyId, data))
   ptys.on('exit', (ptyId: string, exitCode: number) => broadcast('pty:exit', ptyId, exitCode))
 
@@ -229,6 +265,18 @@ app.whenReady().then(() => {
   ipcMain.handle('handoff:cancel', (_e, sessionId: string) => handoff.cancel(sessionId))
   ipcMain.handle('handoff:compact', (_e, sessionId: string) => handoff.compact(sessionId))
 
+  // ── airspace control: mode + log ─────────────────────────────────────
+  ipcMain.handle('airspace:get', () => ({
+    mode: deconflictor.getMode(),
+    claims: deconflictor.claimList(),
+    events: deconflictor.events(),
+    prevented: deconflictor.preventedCount()
+  }))
+  ipcMain.handle('airspace:set-mode', (_e, mode: DeconflictMode) => {
+    if (mode === 'off' || mode === 'warn' || mode === 'enforce') deconflictor.setMode(mode)
+    return deconflictor.getMode()
+  })
+
   // ── hover peek: last few transcript exchanges ────────────────────────
   ipcMain.handle('transcript:tail', (_e, sessionId: string) => {
     const inst = store.get(sessionId)
@@ -293,5 +341,9 @@ app.on('window-all-closed', () => {
   ptys.disposeAll()
   store.stop()
   prPoller.stop()
+  // stop answering PreToolUse before the port closes, so nothing is left
+  // half-deciding while we shut down
+  hookServer.setPreToolDecider(null)
+  hookServer.stop()
   app.quit()
 })
