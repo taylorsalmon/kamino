@@ -24,7 +24,9 @@ import {
   extractUserPrompt,
   isPidAlive,
   readSessionRegistry,
+  readTaskList,
   scanWindowEvidence,
+  TASKS_DIR,
   transcriptPath,
   type PendingToolUse,
   type SessionRegistryEntry,
@@ -136,6 +138,7 @@ export class InstanceStore extends EventEmitter {
     )
   }
   private watcher: FSWatcher | null = null
+  private taskWatcher: FSWatcher | null = null
   private rosterSessionIds = new Set<string>()
   private broadcastTimer: NodeJS.Timeout | null = null
   private pollTimer: NodeJS.Timeout | null = null
@@ -172,10 +175,50 @@ export class InstanceStore extends EventEmitter {
       this.refreshRegistry()
     })
     this.pollTimer = setInterval(() => this.refreshRegistry(), 2000)
+    this.watchTaskLists()
+  }
+
+  /**
+   * Task lists live one directory per session, created only if a clone makes a
+   * list — so watch the parent (depth 2) rather than per-session paths, and map
+   * each event back to its sessionId.
+   */
+  private watchTaskLists(): void {
+    try {
+      fs.mkdirSync(TASKS_DIR, { recursive: true })
+    } catch {
+      /* if it can't exist, chokidar just never fires */
+    }
+    this.taskWatcher = chokidar.watch(TASKS_DIR, {
+      ignoreInitial: true,
+      depth: 2,
+      awaitWriteFinish: { stabilityThreshold: 120, pollInterval: 50 }
+    })
+    this.taskWatcher.on('all', (_event, p) => {
+      const rel = path.relative(TASKS_DIR, p)
+      const sessionId = rel.split(path.sep)[0]
+      if (sessionId && this.tracked.has(sessionId)) this.refreshTasks(sessionId)
+    })
+  }
+
+  /** Re-read one session's task list and broadcast if anything moved. */
+  private refreshTasks(sessionId: string): void {
+    const t = this.tracked.get(sessionId)
+    if (!t) return
+    const next = readTaskList(sessionId)
+    const prev = t.instance.tasks
+    const same =
+      prev?.total === next?.total &&
+      prev?.completed === next?.completed &&
+      prev?.inProgress === next?.inProgress &&
+      prev?.activeLabel === next?.activeLabel
+    t.instance.tasks = next
+    if (!same) this.queueBroadcast()
   }
 
   stop(): void {
     this.watcher?.close()
+    this.taskWatcher?.close()
     if (this.pollTimer) clearInterval(this.pollTimer)
     if (this.windowSaveTimer) clearTimeout(this.windowSaveTimer)
     for (const t of this.tracked.values()) t.tailer?.stop()
@@ -310,7 +353,8 @@ export class InstanceStore extends EventEmitter {
       recent: { lastPrompt: '', lastAssistantText: '', prs: [], turns: 0 },
       startedAt: entry.startedAt,
       lastActiveAt: entry.updatedAt ?? entry.startedAt,
-      version: entry.version
+      version: entry.version,
+      tasks: readTaskList(entry.sessionId)
     }
     const t: Tracked = { instance, tailer: null, caughtUp: false, registry: entry, lastToolUse: null }
     const file = transcriptPath(entry.cwd, entry.sessionId)

@@ -447,6 +447,9 @@ body {
   .card .rail {
     animation: none !important;
   }
+  .tt-seg[data-status='in_progress'] {
+    animation: none !important;
+  }
 }
 
 .card-body {
@@ -996,6 +999,19 @@ body {
 .grid-view[data-density='max'] .pane-quote {
   font-size: 10px;
 }
+/* the track survives max density — progress is the reason it exists — but it
+   shrinks to a bar, a count and whatever label fits */
+.grid-view[data-density='max'] .tasktrack {
+  padding: 2px 10px 3px;
+  gap: 7px;
+}
+.grid-view[data-density='max'] .tt-bar {
+  width: 60px;
+  height: 5px;
+}
+.grid-view[data-density='max'] .tt-label {
+  font-size: 10px;
+}
 
 .pane {
   position: relative; /* anchors the edge resize handles */
@@ -1275,6 +1291,181 @@ body.pane-resizing .terminal-view {
   color: var(--sage);
   text-transform: none;
 }
+/* ── Task track ────────────────────────────────────────────────────────────
+   How far through its own task list a clone is. Every other live signal in a
+   pane is instantaneous — this is the only one with a direction, so it gets a
+   row of height instead of a chip competing for width. One segment per task. */
+.tasktrack {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 12px 5px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+  min-width: 0;
+  background: rgba(95, 184, 138, 0.045);
+}
+.tt-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  width: 84px;
+  height: 6px;
+  flex-shrink: 0;
+  background: var(--bg3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.tt-seg {
+  flex: 1;
+  min-width: 2px;
+  background: var(--line-bright);
+}
+.tt-seg[data-status='completed'] {
+  background: var(--sage);
+}
+.tt-seg[data-status='in_progress'] {
+  background: var(--clay);
+}
+/* only a running clone's current task pulses — a dead one's is just history */
+.tasktrack[data-live='yes'] .tt-seg[data-status='in_progress'],
+.card-tasks .tt-seg[data-status='in_progress'] {
+  animation: tt-pulse 1.7s ease-in-out infinite;
+}
+.tt-fill {
+  background: var(--sage);
+}
+@keyframes tt-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.tt-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.tasktrack[data-done='yes'] .tt-count,
+.card-tasks[data-done='yes'] .tt-count {
+  color: var(--sage);
+}
+.tt-label {
+  font-size: 11.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.tt-label[data-next='yes'] {
+  color: var(--muted);
+}
+.tt-next {
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 3px;
+  margin-right: 6px;
+}
+.tasktrack[data-done='yes'] .tt-label {
+  color: var(--sage);
+}
+
+/* hover tip — the whole checklist. Fixed, because every row that hosts the
+   track clips overflow (same reason as the rot tip). */
+.tt-tip {
+  position: fixed;
+  z-index: 40;
+  width: 320px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 11px;
+  background: var(--bg1);
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  max-height: 340px;
+  overflow: hidden;
+}
+.tt-tip-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tt-tip-title {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--faint);
+}
+.tt-tip-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.tt-tip-list,
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.tt-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11.5px;
+  min-width: 0;
+}
+.task-list .tt-item {
+  font-size: 12.5px;
+}
+.tt-glyph {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.tt-item[data-status='completed'] .tt-glyph {
+  color: var(--sage);
+}
+.tt-item[data-status='in_progress'] .tt-glyph {
+  color: var(--clay);
+}
+.tt-subject {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.tt-item[data-status='completed'] .tt-subject {
+  color: var(--faint);
+}
+.tt-item[data-status='in_progress'] .tt-subject {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* focus-view card: same track, spans only (the card is a <button>) */
+.card-tasks {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 7px;
+  min-width: 0;
+}
+
 .pane-quotes {
   display: flex;
   flex-direction: column;

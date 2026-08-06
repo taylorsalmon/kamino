@@ -36,6 +36,32 @@ export function InstanceCard(props: {
           <span className="caret">▸</span>
           {inst.now.activity}
         </span>
+        {/* progress through its own task list — spans only, this card is a
+            <button> and a <div> here would be invalid nesting */}
+        {inst.tasks && (
+          <span className="card-tasks" data-done={inst.tasks.completed === inst.tasks.total ? 'yes' : undefined}>
+            <span className="tt-bar" aria-hidden>
+              {inst.tasks.total <= 16 ? (
+                inst.tasks.items.map((it) => (
+                  <span key={it.id} className="tt-seg" data-status={it.status} />
+                ))
+              ) : (
+                <span
+                  className="tt-fill"
+                  style={{ width: `${(inst.tasks.completed / inst.tasks.total) * 100}%` }}
+                />
+              )}
+            </span>
+            <span className="tt-count">
+              {inst.tasks.completed}/{inst.tasks.total}
+            </span>
+            <span className="tt-label">
+              {inst.tasks.completed === inst.tasks.total
+                ? 'all tasks complete'
+                : (inst.tasks.activeLabel ?? '')}
+            </span>
+          </span>
+        )}
         <span className="card-meta">
           <span className="kind-tag">{KIND_WORD[inst.kind] ?? inst.kind}</span>
           <span className="branch">
