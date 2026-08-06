@@ -141,6 +141,12 @@ export interface Instance {
   context?: ContextHealth
   /** its own task list, when it keeps one */
   tasks?: TaskProgress
+  /**
+   * This clone is an airspace arbiter Kamino dispatched to settle a collision,
+   * not a clone you commissioned. Every surface renders it differently — an
+   * arbiter that reads as an ordinary clone is one you'd give work to.
+   */
+  arbiter?: boolean
   startedAt: number
   lastActiveAt: number
   /** cli version, e.g. 2.1.220 */
@@ -226,6 +232,70 @@ export interface AirspaceState {
   contested: ContestedFile[]
   /** running total of collisions actually denied (survives restarts) */
   prevented: number
+}
+
+/**
+ * The arbiter — a clone Kamino dispatches to settle a collision that airspace
+ * control has just denied, so the blocked clone doesn't have to come to you.
+ *
+ * Stages run in order: gathering (Kamino is reading the working tree) →
+ * dispatched (arbiter spawned) → working (it has its orders) → resolved (it
+ * settled it and the blocked clone has been sent on its way) OR escalated (it
+ * wasn't sure, so the question is now yours) OR failed.
+ */
+export type ArbiterStage =
+  | 'gathering'
+  | 'dispatched'
+  | 'working'
+  | 'resolved'
+  | 'escalated'
+  | 'failed'
+
+/** One collision, from denial to verdict. Every field is for the log — an
+ *  automation that resolves your conflicts unread is one you cannot trust. */
+export interface ArbiterCase {
+  id: string
+  at: number
+  stage: ArbiterStage
+  cwd: string
+  repo: string
+  /** the clone whose command airspace denied */
+  blockedClone: string
+  blockedSessionId: string
+  /** what it was trying to run, as classified */
+  command: string
+  /** the clones whose in-flight work it would have hit */
+  siblings: string[]
+  /** the files at stake */
+  files: string[]
+  /** the arbiter's own session/terminal, once it registers */
+  arbiterSessionId?: string
+  arbiterPtyId?: string
+  /** one line: what the collision actually turned out to be */
+  summary?: string
+  /** what the arbiter did about it, or what it found before giving up */
+  action?: string
+  /** escalated only — the single decision it needs from you */
+  question?: string
+  /** escalated only — the concrete choices it sees */
+  options?: string[]
+  error?: string
+  finishedAt?: number
+}
+
+export interface ArbiterSettings {
+  /** dispatch an arbiter whenever airspace control denies a command. Off until
+   *  asked for — this spawns a clone and lets it touch the index. */
+  enabled: boolean
+}
+
+export interface ArbiterState {
+  settings: ArbiterSettings
+  cases: ArbiterCase[]
+  /** collisions settled without you, across restarts */
+  resolved: number
+  /** collisions that still came back to you */
+  escalated: number
 }
 
 /**

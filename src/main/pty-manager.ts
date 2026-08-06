@@ -18,6 +18,13 @@ export interface SpawnOptions {
    *  pass false to commission a clone that leaves shipping to you. */
   autoShip?: boolean
   /**
+   * Extra standing orders for this clone, appended to its system prompt. Used
+   * for roles rather than tasks (the arbiter), which must survive the whole
+   * session rather than scroll out of the window like a first prompt would.
+   * Only honoured when autoShip is false — the CLI takes one such flag.
+   */
+  appendSystemPrompt?: string
+  /**
    * Give this clone its own git worktree (--worktree), optionally named. One
    * working tree each is what makes several clones on one repo genuinely
    * parallel: a folder has a single checked-out branch, so clones sharing one
@@ -87,6 +94,7 @@ export class PtyManager extends EventEmitter {
       if (name) args.push(name)
     }
     if (opts.autoShip !== false) args.push('--append-system-prompt', AUTO_SHIP_ORDERS)
+    else if (opts.appendSystemPrompt) args.push('--append-system-prompt', opts.appendSystemPrompt)
     // the prompt goes last: everything after it would be read as more prompt
     if (opts.initialPrompt) args.push(opts.initialPrompt)
 

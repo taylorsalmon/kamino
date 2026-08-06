@@ -2821,3 +2821,207 @@ body.pane-resizing .terminal-view {
     animation: none !important;
   }
 }
+
+/* ── the arbiter ────────────────────────────────────────────────────────
+   Kamino's own clone, dispatched to settle a collision between two of yours.
+   It must be unmistakable at a glance, because the one thing that would break
+   it is you treating it as a pane to type work into. So it breaks every rule
+   the wall otherwise follows: violet where clones are clay, a hatched strip
+   where they are flat, dashed where they are solid. State lamps are suppressed
+   entirely — an arbiter is never "yours to answer", so the amber/coral
+   vocabulary would be a lie. */
+
+.pane[data-arbiter='yes'] {
+  border: 1px dashed var(--violet);
+  background:
+    linear-gradient(rgba(167, 139, 250, 0.05), rgba(167, 139, 250, 0.05)), var(--bg1);
+}
+.pane[data-arbiter='yes']:focus-within {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 1px var(--violet);
+}
+
+/* diagonal hatch — the visual language of "closed lane", and used nowhere else */
+.pane-strip[data-arbiter='yes'] {
+  background: repeating-linear-gradient(
+      135deg,
+      rgba(167, 139, 250, 0.14) 0 6px,
+      transparent 6px 12px
+    ),
+    var(--bg2);
+  border-bottom: 1px solid var(--violet);
+}
+.pane-strip[data-arbiter='yes'] .pane-rail,
+.pane-strip[data-arbiter='yes'][data-state='busy'] .pane-rail,
+.pane-strip[data-arbiter='yes'][data-state='needs-you'] .pane-rail,
+.pane-strip[data-arbiter='yes'][data-state='idle'] .pane-rail {
+  background: var(--violet);
+  animation: none;
+}
+.pane-strip[data-arbiter='yes'] .pane-name {
+  color: var(--violet);
+}
+.pane-strip[data-arbiter='yes'] .pane-activity,
+.pane-strip[data-arbiter='yes'][data-state='busy'] .pane-activity,
+.pane-strip[data-arbiter='yes'][data-state='needs-you'] .pane-activity {
+  color: var(--muted);
+}
+.state-word[data-arbiter='yes'] {
+  color: var(--violet);
+}
+
+/* the Focus roster card gets the same treatment, for the same reason */
+.card[data-arbiter='yes'] {
+  border-color: var(--violet);
+  border-style: dashed;
+  background:
+    linear-gradient(rgba(167, 139, 250, 0.05), rgba(167, 139, 250, 0.05)), var(--bg1);
+}
+.card[data-arbiter='yes'] .rail {
+  background: var(--violet);
+  animation: none;
+}
+.card[data-arbiter='yes'] .card-name {
+  color: var(--violet);
+}
+
+.pane-arbiter-badge {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--bg0);
+  background: var(--violet);
+  border-radius: 3px;
+  padding: 2px 6px;
+  margin-left: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ── arbiter section of the Airspace panel ───────────────────────────── */
+
+.arbiter-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--bg2);
+}
+.arbiter-toggle.active {
+  border-color: var(--violet);
+  background: rgba(167, 139, 250, 0.08);
+}
+.arbiter-toggle input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.arbiter-toggle-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.arbiter-toggle-title {
+  font-weight: 600;
+  color: var(--text);
+}
+.arbiter-toggle-note {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.arbiter-cases {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.arbiter-case {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ghost);
+  border-radius: 4px;
+  background: var(--bg2);
+}
+.arbiter-case[data-stage='resolved'] {
+  border-left-color: var(--sage);
+}
+.arbiter-case[data-stage='escalated'],
+.arbiter-case[data-stage='failed'] {
+  border-left-color: var(--coral);
+}
+.arbiter-case[data-stage='gathering'],
+.arbiter-case[data-stage='dispatched'],
+.arbiter-case[data-stage='working'] {
+  border-left-color: var(--violet);
+}
+.arbiter-stage {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--violet);
+  white-space: nowrap;
+}
+.arbiter-case[data-stage='resolved'] .arbiter-stage {
+  color: var(--sage);
+}
+.arbiter-case[data-stage='escalated'] .arbiter-stage,
+.arbiter-case[data-stage='failed'] .arbiter-stage {
+  color: var(--coral);
+}
+.arbiter-case-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.arbiter-case-top {
+  font-size: 12px;
+  color: var(--text);
+}
+.arbiter-case-top code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--clay);
+}
+.arbiter-case-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+/* the question is the whole point of an escalation — it does not get to be
+   small print */
+.arbiter-case-question {
+  font-size: 12px;
+  color: var(--coral);
+  line-height: 1.45;
+}
+.arbiter-case-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.arbiter-case-option {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  border: 1px solid var(--line-bright);
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+.arbiter-case-ago {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  white-space: nowrap;
+}

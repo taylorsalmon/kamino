@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AirspaceState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
+import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 const api = {
   // fleet status
@@ -64,6 +64,16 @@ const api = {
     const listener = (_e: unknown, ev: DeconflictEvent): void => cb(ev)
     ipcRenderer.on('airspace:event', listener)
     return () => ipcRenderer.removeListener('airspace:event', listener)
+  },
+
+  // the arbiter: a clone dispatched to settle a collision airspace denied
+  arbiterGet: (): Promise<ArbiterState> => ipcRenderer.invoke('arbiter:get'),
+  arbiterSet: (next: Partial<ArbiterSettings>): Promise<ArbiterSettings> =>
+    ipcRenderer.invoke('arbiter:set', next),
+  onArbiterCase: (cb: (c: ArbiterCase) => void): (() => void) => {
+    const listener = (_e: unknown, c: ArbiterCase): void => cb(c)
+    ipcRenderer.on('arbiter:case', listener)
+    return () => ipcRenderer.removeListener('arbiter:case', listener)
   },
 
   // hyperdrive: automatic fixes for red CI and merge conflicts

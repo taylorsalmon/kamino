@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AirspaceState, DeconflictEvent, DeconflictMode } from '../../../shared/types'
+import type {
+  AirspaceState,
+  ArbiterCase,
+  ArbiterState,
+  DeconflictEvent,
+  DeconflictMode
+} from '../../../shared/types'
 import { agoShort } from '../format'
 
 /**
@@ -34,11 +40,22 @@ const RISK_WORD: Record<string, string> = {
   destructive: 'would have destroyed their changes'
 }
 
+const STAGE_WORD: Record<ArbiterCase['stage'], string> = {
+  gathering: 'READING TREE',
+  dispatched: 'DISPATCHED',
+  working: 'ARBITRATING',
+  resolved: 'SETTLED',
+  escalated: 'YOURS',
+  failed: 'FAILED'
+}
+
 export function AirspaceDialog(props: { onClose: () => void; now: number }): React.JSX.Element {
   const [state, setState] = useState<AirspaceState | null>(null)
+  const [arb, setArb] = useState<ArbiterState | null>(null)
 
   const refresh = useCallback(() => {
     window.fleet.airspaceGet().then(setState)
+    window.fleet.arbiterGet().then(setArb)
   }, [])
   // claims and contested files change as clones work — poll while open so the
   // panel is worth leaving on a second monitor
@@ -55,6 +72,20 @@ export function AirspaceDialog(props: { onClose: () => void; now: number }): Rea
     )
   }, [])
 
+  // an arbitration in progress is worth watching in real time — the case
+  // arrives repeatedly as it moves through its stages, keyed by id
+  useEffect(() => {
+    return window.fleet.onArbiterCase((c: ArbiterCase) =>
+      setArb((s) => {
+        if (!s) return s
+        const cases = s.cases.some((x) => x.id === c.id)
+          ? s.cases.map((x) => (x.id === c.id ? c : x))
+          : [c, ...s.cases].slice(0, 100)
+        return { ...s, cases }
+      })
+    )
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') props.onClose()
@@ -66,6 +97,11 @@ export function AirspaceDialog(props: { onClose: () => void; now: number }): Rea
   function setMode(mode: DeconflictMode): void {
     setState((s) => (s ? { ...s, mode } : s))
     void window.fleet.airspaceSetMode(mode)
+  }
+
+  function setArbiter(enabled: boolean): void {
+    setArb((s) => (s ? { ...s, settings: { ...s.settings, enabled } } : s))
+    void window.fleet.arbiterSet({ enabled }).then(() => refresh())
   }
 
   const events = state?.events ?? []
@@ -123,6 +159,87 @@ export function AirspaceDialog(props: { onClose: () => void; now: number }): Rea
               </label>
             ))}
           </div>
+
+          <div className="airspace-section">
+            THE ARBITER
+            <span className="airspace-section-note">
+              what happens after a collision is stopped — because stopping one and then handing the
+              decision to you is only half a job
+            </span>
+          </div>
+          <label
+            className={`arbiter-toggle${arb?.settings.enabled ? ' active' : ''}`}
+            onClick={() => setArbiter(!arb?.settings.enabled)}
+          >
+            <input type="checkbox" checked={arb?.settings.enabled ?? false} readOnly />
+            <span className="arbiter-toggle-body">
+              <span className="arbiter-toggle-title">
+                Dispatch an arbiter to settle it
+                {arb && (
+                  <>
+                    {' '}
+                    · <b>{arb.resolved}</b> settled without you · <b>{arb.escalated}</b> came back
+                  </>
+                )}
+              </span>
+              <span className="arbiter-toggle-note">
+                Kamino spawns a third clone in that folder — badged{' '}
+                <b style={{ color: 'var(--violet)' }}>⚖ ARBITER</b> and skinned so it can&apos;t be
+                mistaken for one of yours. It sees both clones&apos; tasks, the whole working tree and
+                who touched what, works out whether the collision is one file with two authors, two
+                files doing one job, or a false alarm, then stages the right side and sends the
+                blocked clone on its way. It never commits, never runs destructive git, and never
+                deletes a sibling&apos;s work. Any doubt at all and it stops and asks you instead —
+                that&apos;s the setting, and it&apos;s deliberate.
+              </span>
+              {arb?.settings.enabled && state?.mode !== 'enforce' && (
+                <span className="arbiter-toggle-note" style={{ color: 'var(--amber)' }}>
+                  Nothing will dispatch while airspace is on {state?.mode === 'off' ? 'stood down' : 'warn only'}.
+                  An arbiter only ever follows a real denial — switch to Enforce above.
+                </span>
+              )}
+              <span className="arbiter-toggle-note" style={{ color: 'var(--faint)' }}>
+                It runs with permissions bypassed, or it would stall on a prompt for{' '}
+                <code>git diff</code>. What bounds it is its standing orders, which forbid commit,
+                checkout, reset, stash, clean, rebase and push outright.
+              </span>
+            </span>
+          </label>
+
+          {arb && arb.cases.length > 0 && (
+            <>
+              <div className="airspace-section">ARBITRATIONS</div>
+              <div className="arbiter-cases">
+                {arb.cases.map((c) => (
+                  <div key={c.id} className="arbiter-case" data-stage={c.stage}>
+                    <span className="arbiter-stage">{STAGE_WORD[c.stage]}</span>
+                    <span className="arbiter-case-body">
+                      <span className="arbiter-case-top">
+                        <b>{c.blockedClone}</b> ran <code>{c.command}</code> in {c.repo}
+                        {c.siblings.length > 0 && <> · against {c.siblings.join(', ')}</>}
+                      </span>
+                      {c.summary && <span className="arbiter-case-sub">{c.summary}</span>}
+                      {c.action && <span className="arbiter-case-sub">{c.action}</span>}
+                      {c.error && (
+                        <span className="arbiter-case-question">{c.error}</span>
+                      )}
+                      {c.question && <span className="arbiter-case-question">{c.question}</span>}
+                      {c.options && c.options.length > 0 && (
+                        <span className="arbiter-case-options">
+                          {c.options.map((o, i) => (
+                            <span key={i} className="arbiter-case-option">
+                              {o}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </span>
+                    <span className="arbiter-case-ago">{agoShort(c.at, props.now)} ago</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {claims.length > 0 && (
             <>

@@ -34,6 +34,9 @@ export function GridPane(props: {
 }): React.JSX.Element {
   const { instance: inst, ptyId, now } = props
   const state = inst?.state ?? 'busy'
+  // an arbiter is Kamino's own clone, not one of yours — it gets a different
+  // skin entirely so it is never mistaken for a pane you can hand work to
+  const isArbiter = inst?.arbiter === true
   // per-pane flip between the live terminal and the intel/detail view
   const [showIntel, setShowIntel] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -120,6 +123,7 @@ export function GridPane(props: {
       ref={paneRef}
       className={`pane${dragOver ? ' drag-over' : ''}${resizing ? ' resizing' : ''}`}
       data-state={state}
+      data-arbiter={isArbiter ? 'yes' : undefined}
       style={{
         gridColumn: size.w > 1 ? `span ${size.w}` : undefined,
         gridRow: size.h > 1 ? `span ${size.h}` : undefined
@@ -137,7 +141,7 @@ export function GridPane(props: {
         if (src) props.onDropPane?.(src)
       }}
     >
-      <div className="pane-strip" data-state={state}>
+      <div className="pane-strip" data-state={state} data-arbiter={isArbiter ? 'yes' : undefined}>
         <span className="pane-rail" />
         <span
           className="pane-grip"
@@ -155,8 +159,16 @@ export function GridPane(props: {
             {props.slot + 1}
           </span>
         )}
+        {isArbiter && (
+          <span
+            className="pane-arbiter-badge"
+            title="An airspace arbiter — Kamino dispatched this clone to settle a collision between two others. It stages; it never commits. Don't give it work."
+          >
+            ⚖ ARBITER
+          </span>
+        )}
         <span className="pane-name">{inst?.name ?? 'growing…'}</span>
-        <span className="state-word" data-state={state}>
+        <span className="state-word" data-state={state} data-arbiter={isArbiter ? 'yes' : undefined}>
           {inst ? stateWord(inst.state, inst.now.askKind) : 'CLONING'}
         </span>
         <span className="pane-activity" title={inst?.now.activity}>

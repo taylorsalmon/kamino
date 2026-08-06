@@ -16,7 +16,10 @@ import { HandoffRunner } from './handoff'
 import { Deconflictor } from './deconflict'
 import { ensureWorktreeIgnored } from './worktree'
 import { Hyperdrive, type PrOwner } from './hyperdrive'
+import { Arbiter } from './arbiter'
 import type {
+  ArbiterCase,
+  ArbiterSettings,
   DeconflictEvent,
   DeconflictMode,
   FleetSnapshot,
@@ -33,6 +36,16 @@ const hookServer = new HookServer()
 const prPoller = new PrStatusPoller()
 const handoff = new HandoffRunner(ptys, store)
 const deconflictor = new Deconflictor(path.join(app.getPath('userData'), 'airspace.json'))
+const arbiter = new Arbiter(
+  {
+    ptys,
+    store,
+    exempt: (sessionId) => deconflictor.exemptSession(sessionId),
+    unexempt: (sessionId) => deconflictor.unexemptSession(sessionId)
+  },
+  path.join(app.getPath('userData'), 'arbiter.json')
+)
+deconflictor.setArbiterEnabled(arbiter.isEnabled())
 
 /** Which live clone raised a PR, and whether its terminal can be reached. */
 function prOwner(prUrl: string): PrOwner | null {
@@ -218,11 +231,32 @@ app.whenReady().then(() => {
   )
   deconflictor.on('event', (ev: DeconflictEvent) => {
     broadcast('airspace:event', ev)
-    if (ev.denied) {
+    if (!ev.denied) return
+    // with an arbiter coming, the collision itself is not news — you'll hear
+    // about it once, at the verdict, and only if it needs you
+    if (arbiter.isEnabled()) {
+      arbiter.open(ev)
+      return
+    }
+    notify(
+      `Collision stopped — ${ev.cloneName}`,
+      `${ev.command} would have hit ${ev.siblings.join(', ')}`,
+      ev.sessionId
+    )
+  })
+
+  // ── the arbiter: settle the collision instead of handing it to you ────
+  store.setArbiterPidSource(() => arbiter.arbiterPids())
+  arbiter.on('change', () => deconflictor.setArbiterEnabled(arbiter.isEnabled()))
+  arbiter.on('case', (c: ArbiterCase) => {
+    broadcast('arbiter:case', c)
+    if (c.stage === 'resolved') {
+      notify(`Airspace settled — ${c.repo}`, c.summary || `${c.blockedClone} is moving again.`, c.blockedSessionId)
+    } else if (c.stage === 'escalated' || c.stage === 'failed') {
       notify(
-        `Collision stopped — ${ev.cloneName}`,
-        `${ev.command} would have hit ${ev.siblings.join(', ')}`,
-        ev.sessionId
+        `Airspace needs you — ${c.repo}`,
+        c.question || c.error || 'The arbiter could not settle this one.',
+        c.arbiterSessionId || c.blockedSessionId
       )
     }
   })
@@ -321,6 +355,10 @@ app.whenReady().then(() => {
     if (mode === 'off' || mode === 'warn' || mode === 'enforce') deconflictor.setMode(mode)
     return deconflictor.getMode()
   })
+
+  // ── the arbiter ──────────────────────────────────────────────────────
+  ipcMain.handle('arbiter:get', () => arbiter.getState())
+  ipcMain.handle('arbiter:set', (_e, next: Partial<ArbiterSettings>) => arbiter.setSettings(next ?? {}))
 
   // ── hyperdrive: automatic fixes ──────────────────────────────────────
   ipcMain.handle('hyperdrive:get', () => hyperdrive.getState())

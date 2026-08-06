@@ -1,4 +1,4 @@
-import type { AirspaceState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
+import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 declare global {
   interface Window {
@@ -28,6 +28,9 @@ declare global {
       airspaceGet: () => Promise<AirspaceState>
       airspaceSetMode: (mode: DeconflictMode) => Promise<DeconflictMode>
       onAirspaceEvent: (cb: (ev: DeconflictEvent) => void) => () => void
+      arbiterGet: () => Promise<ArbiterState>
+      arbiterSet: (next: Partial<ArbiterSettings>) => Promise<ArbiterSettings>
+      onArbiterCase: (cb: (c: ArbiterCase) => void) => () => void
       handoffStart: (sessionId: string, killOld: boolean) => Promise<void>
       handoffCancel: (sessionId: string) => Promise<void>
       handoffCompact: (sessionId: string) => Promise<boolean>
