@@ -84,6 +84,37 @@ export interface ContextHealth {
   lastCompactAt?: number
 }
 
+/** One entry of a clone's task list (~/.claude/tasks/<sessionId>/<id>.json). */
+export interface TaskItem {
+  id: string
+  subject: string
+  /** present-tense label the CLI writes for display while the task runs */
+  activeForm?: string
+  /** 'pending' | 'in_progress' | 'completed' — unknown values pass through */
+  status: string
+  /** ids of tasks that cannot start until this one is done */
+  blocks?: string[]
+  blockedBy?: string[]
+}
+
+/**
+ * Progress through a clone's own task list — the only signal that says where it
+ * is up to rather than what it is touching this second. Absent when the session
+ * never made a list (many don't), so every surface must tolerate undefined.
+ */
+export interface TaskProgress {
+  items: TaskItem[]
+  total: number
+  completed: number
+  inProgress: number
+  /** what to show as the current step — the in-progress task's activeForm,
+   *  else the next pending subject, else undefined when everything is done */
+  activeLabel?: string
+  /** true when the label describes a task not started yet */
+  activeIsNext?: boolean
+  updatedAt: number
+}
+
 export interface InstanceRecent {
   lastPrompt: string
   lastAssistantText: string
@@ -108,6 +139,8 @@ export interface Instance {
   now: InstanceNow
   recent: InstanceRecent
   context?: ContextHealth
+  /** its own task list, when it keeps one */
+  tasks?: TaskProgress
   startedAt: number
   lastActiveAt: number
   /** cli version, e.g. 2.1.220 */

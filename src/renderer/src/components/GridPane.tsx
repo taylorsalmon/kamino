@@ -4,6 +4,7 @@ import { agoShort, elapsed, prBadge, stateWord } from '../format'
 import { TerminalView } from './TerminalView'
 import { DetailPanel } from './DetailPanel'
 import { RotBar } from './RotBar'
+import { TaskTrack } from './TaskTrack'
 
 /**
  * One cell of the grid view: a live status strip on top and, below it, the
@@ -220,6 +221,9 @@ export function GridPane(props: {
           </button>
         </span>
       </div>
+      {/* progress before provenance: how far through it is sits directly under
+          the state word, where the eye already is */}
+      {inst?.tasks && <TaskTrack tasks={inst.tasks} live={state !== 'dead'} />}
       {inst && (
         <div className="pane-title">
           {inst.now.title && <span className="pane-task">{inst.now.title}</span>}

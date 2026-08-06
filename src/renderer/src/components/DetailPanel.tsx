@@ -82,6 +82,26 @@ export function DetailPanel(props: {
         </div>
       </div>
 
+      {inst.tasks && (
+        <div className="section">
+          <div className="section-label">
+            Task list — {inst.tasks.completed} of {inst.tasks.total} done
+          </div>
+          <div className="task-list">
+            {inst.tasks.items.map((it) => (
+              <div key={it.id} className="tt-item" data-status={it.status}>
+                <span className="tt-glyph">
+                  {it.status === 'completed' ? '✓' : it.status === 'in_progress' ? '▸' : '○'}
+                </span>
+                <span className="tt-subject">
+                  {it.status === 'in_progress' ? it.activeForm || it.subject : it.subject}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="section">
         <div className="section-label">Status report</div>
         {recapText ? (

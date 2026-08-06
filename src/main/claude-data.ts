@@ -9,11 +9,12 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import type { PendingAskKind } from '../shared/types'
+import type { PendingAskKind, TaskItem, TaskProgress } from '../shared/types'
 
 export const CLAUDE_DIR = path.join(os.homedir(), '.claude')
 export const SESSIONS_DIR = path.join(CLAUDE_DIR, 'sessions')
 export const PROJECTS_DIR = path.join(CLAUDE_DIR, 'projects')
+export const TASKS_DIR = path.join(CLAUDE_DIR, 'tasks')
 
 // ---------------------------------------------------------------------------
 // Session registry: ~/.claude/sessions/<pid>.json
@@ -62,6 +63,74 @@ export function isPidAlive(pid: number): boolean {
     return true
   } catch {
     return false
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Task list: ~/.claude/tasks/<sessionId>/<id>.json
+// ---------------------------------------------------------------------------
+
+/** Numeric ids ("2" before "10"), with a string fallback for anything odd. */
+function byTaskId(a: TaskItem, b: TaskItem): number {
+  const na = Number(a.id)
+  const nb = Number(b.id)
+  if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb
+  return a.id.localeCompare(b.id)
+}
+
+export function taskDir(sessionId: string): string {
+  return path.join(TASKS_DIR, sessionId)
+}
+
+/**
+ * A session's task list, or undefined when it keeps none. The directory also
+ * goes empty when a clone clears its list, which reads the same as never having
+ * had one — deliberately, since a stale checklist is worse than no checklist.
+ */
+export function readTaskList(sessionId: string): TaskProgress | undefined {
+  const dir = taskDir(sessionId)
+  let files: string[]
+  try {
+    files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'))
+  } catch {
+    return undefined // no list for this session
+  }
+  const items: TaskItem[] = []
+  for (const f of files) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'))
+      if (!raw || typeof raw !== 'object') continue
+      const id = typeof raw.id === 'string' ? raw.id : path.basename(f, '.json')
+      const subject = typeof raw.subject === 'string' ? raw.subject : ''
+      if (!subject) continue
+      items.push({
+        id,
+        subject,
+        activeForm: typeof raw.activeForm === 'string' ? raw.activeForm : undefined,
+        status: typeof raw.status === 'string' ? raw.status : 'pending',
+        blocks: Array.isArray(raw.blocks) ? raw.blocks.filter((x: unknown) => typeof x === 'string') : undefined,
+        blockedBy: Array.isArray(raw.blockedBy)
+          ? raw.blockedBy.filter((x: unknown) => typeof x === 'string')
+          : undefined
+      })
+    } catch {
+      /* mid-write or unreadable — the next watch event re-reads */
+    }
+  }
+  if (items.length === 0) return undefined
+  items.sort(byTaskId)
+  const inProgress = items.filter((i) => i.status === 'in_progress')
+  const completed = items.filter((i) => i.status === 'completed').length
+  const next = items.find((i) => i.status !== 'completed' && i.status !== 'in_progress')
+  const running = inProgress[0]
+  return {
+    items,
+    total: items.length,
+    completed,
+    inProgress: inProgress.length,
+    activeLabel: running ? running.activeForm || running.subject : next?.subject,
+    activeIsNext: !running && !!next,
+    updatedAt: Date.now()
   }
 }
 
