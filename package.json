@@ -9,7 +9,9 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "test": "esbuild scripts/deconflict.test.ts --bundle --format=esm --platform=node --outfile=out/deconflict.test.mjs --log-level=warning && node out/deconflict.test.mjs",
+    "test": "npm run test:deconflict && npm run test:arbiter",
+    "test:deconflict": "esbuild scripts/deconflict.test.ts --bundle --format=esm --platform=node --outfile=out/deconflict.test.mjs --log-level=warning && node out/deconflict.test.mjs",
+    "test:arbiter": "esbuild scripts/arbiter.test.ts --bundle --format=esm --platform=node --outfile=out/arbiter.test.mjs --log-level=warning && node out/arbiter.test.mjs",
     "start": "electron-vite preview",
     "package": "electron-vite build && electron-builder --win"
   },

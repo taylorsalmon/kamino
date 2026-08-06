@@ -144,9 +144,15 @@ export class InstanceStore extends EventEmitter {
   private pollTimer: NodeJS.Timeout | null = null
   /** pids of PTYs we own — instances with these pids are 'embedded' */
   private embeddedPids: () => Set<number> = () => new Set()
+  /** pids of arbiters Kamino dispatched — clones it made, not clones you did */
+  private arbiterPids: () => Set<number> = () => new Set()
 
   setEmbeddedPidSource(source: () => Set<number>): void {
     this.embeddedPids = source
+  }
+
+  setArbiterPidSource(source: () => Set<number>): void {
+    this.arbiterPids = source
   }
 
   sessionIdForPid(pid: number): string | null {
@@ -375,6 +381,10 @@ export class InstanceStore extends EventEmitter {
     inst.pid = entry.pid
     inst.name = entry.name ?? inst.name
     inst.lastActiveAt = Math.max(inst.lastActiveAt, entry.updatedAt ?? 0)
+    // sticky: once an arbiter, always one. Its pid leaves the set when its
+    // terminal closes, and a pane that quietly stopped being an arbiter at that
+    // moment would be a pane you might then hand work to.
+    if (this.arbiterPids().has(entry.pid)) inst.arbiter = true
     if (this.embeddedPids().has(entry.pid)) inst.kind = 'embedded'
     else if (entry.kind === 'bg' || this.rosterSessionIds.has(inst.sessionId)) inst.kind = 'background'
     else inst.kind = 'external'

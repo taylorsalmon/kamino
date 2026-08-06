@@ -16,8 +16,8 @@
  * into a terminal it didn't spawn.
  */
 import { EventEmitter } from 'node:events'
-import * as fs from 'node:fs'
-import { describeAssistant, parseRecord, transcriptPath } from './claude-data'
+import { transcriptPath } from './claude-data'
+import { fileSize, findMarked, readSince, sleep, type Marked } from './marker-watch'
 import type { InstanceStore } from './instance-store'
 import type { PtyManager } from './pty-manager'
 import type { HandoffProgress } from '../shared/types'
@@ -29,8 +29,6 @@ const END = '===KAMINO-HANDOFF-END==='
  *  turn the clone is already running. */
 const BRIEF_TIMEOUT_MS = 300_000
 const POLL_MS = 800
-/** never read more than this much new transcript while watching for the brief */
-const MAX_TAIL = 4 * 1024 * 1024
 /** a new clone is ready for input once its output has been quiet this long */
 const READY_QUIET_MS = 1500
 const READY_TIMEOUT_MS = 30_000
@@ -60,82 +58,9 @@ function successorOrders(brief: string, repo: string): string {
   )
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms))
-}
-
-function fileSize(file: string): number {
-  try {
-    return fs.statSync(file).size
-  } catch {
-    return 0
-  }
-}
-
-/** New transcript bytes since `offset`, capped — returns '' when nothing grew. */
-function readSince(file: string, offset: number): string {
-  let size: number
-  try {
-    size = fs.statSync(file).size
-  } catch {
-    return ''
-  }
-  if (size <= offset) return ''
-  const start = size - offset > MAX_TAIL ? size - MAX_TAIL : offset
-  let text: string
-  try {
-    const fd = fs.openSync(file, 'r')
-    try {
-      const buf = Buffer.alloc(size - start)
-      fs.readSync(fd, buf, 0, buf.length, start)
-      text = buf.toString('utf-8')
-    } finally {
-      fs.closeSync(fd)
-    }
-  } catch {
-    return ''
-  }
-  if (start > offset) {
-    // we skipped ahead — the first line is torn mid-record
-    const nl = text.indexOf('\n')
-    text = nl < 0 ? '' : text.slice(nl + 1)
-  }
-  return text
-}
-
-interface BriefFound {
-  /** text between the markers, or the whole reply when falling back */
-  text: string
-  /** the closing marker arrived — the brief is complete */
-  complete: boolean
-}
-
-/**
- * Pull the brief out of the assistant records written since our order. A
- * streamed reply lands as several records that grow the same text, so the LAST
- * candidate is the most complete one — which also makes this a live progress
- * read while the clone is still typing.
- */
-function findBrief(chunk: string): BriefFound | null {
-  let marked: string | null = null
-  let anyText: string | null = null
-  for (const line of chunk.split('\n')) {
-    const rec = parseRecord(line)
-    if (!rec || rec.type !== 'assistant' || rec.isSidechain) continue
-    const text = describeAssistant(rec)?.text
-    if (!text) continue
-    anyText = text
-    if (text.includes(START)) marked = text
-  }
-  if (marked) {
-    const body = marked.slice(marked.indexOf(START) + START.length)
-    const close = body.indexOf(END)
-    return close >= 0
-      ? { text: body.slice(0, close).trim(), complete: true }
-      : { text: body.trim(), complete: false }
-  }
-  // no markers at all — kept as the timeout fallback, never as a completion
-  return anyText ? { text: anyText.trim(), complete: false } : null
+/** the unmarked fallback is kept as the TIMEOUT answer, never as a completion */
+function findBrief(chunk: string): Marked | null {
+  return findMarked(chunk, START, END, { fallback: true })
 }
 
 interface Run {
@@ -248,9 +173,9 @@ export class HandoffRunner extends EventEmitter {
     file: string,
     offset: number,
     run: Run
-  ): Promise<BriefFound> {
+  ): Promise<Marked> {
     const deadline = Date.now() + BRIEF_TIMEOUT_MS
-    let last: BriefFound | null = null
+    let last: Marked | null = null
     while (Date.now() < deadline) {
       await sleep(POLL_MS)
       if (run.cancelled) throw new Error('cancelled')

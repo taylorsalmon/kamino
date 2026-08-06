@@ -20,13 +20,24 @@ export function InstanceCard(props: {
     <button
       className={`card${props.selected ? ' selected' : ''}`}
       data-state={inst.state}
+      data-arbiter={inst.arbiter ? 'yes' : undefined}
       onClick={props.onSelect}
     >
       <span className="rail" />
       <span className="card-body">
         <span className="card-top">
+          {/* the roster has to carry this too — an arbiter is unmistakable on
+              the wall and then just another name in the list otherwise */}
+          {inst.arbiter && (
+            <span
+              className="pane-arbiter-badge"
+              title="An airspace arbiter Kamino dispatched to settle a collision. It stages; it never commits. Don't give it work."
+            >
+              ⚖ ARBITER
+            </span>
+          )}
           <span className="card-name">{inst.name}</span>
-          <span className="state-word" data-state={inst.state}>
+          <span className="state-word" data-state={inst.state} data-arbiter={inst.arbiter ? 'yes' : undefined}>
             {stateWord(inst.state, inst.now.askKind)}
           </span>
           <span className="card-elapsed">{rightTime}</span>

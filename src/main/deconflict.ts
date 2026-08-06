@@ -158,6 +158,20 @@ const RISK_ADVICE: Record<GitRisk, string> = {
     'Do not run it. Leave the working tree alone and either finish on the current branch or ask the user how to proceed.'
 }
 
+/**
+ * What to tell the clone instead when an arbiter is going to settle this.
+ *
+ * The advice above ends at the user's desk: told to work around a collision it
+ * cannot see the far side of, a clone reasonably stops and asks. That question
+ * is the thing the arbiter exists to absorb, so when one is coming the clone is
+ * told to stand down rather than to improvise — and told explicitly not to ask,
+ * because "should I hold?" is still an interruption.
+ */
+const ARBITER_ADVICE =
+  'Kamino has dispatched an arbiter to settle this. Do NOT ask the user about it, do NOT retry this ' +
+  'command, and do NOT work around it by staging or moving files yourself. Stop here and end your turn. ' +
+  'Fresh orders will arrive in this terminal when the arbiter is done.'
+
 /** one clone's edit history for one file */
 interface Touch {
   sessionId: string
@@ -174,6 +188,16 @@ export class Deconflictor extends EventEmitter {
   private mode: DeconflictMode = 'warn'
   private prevented = 0
   private seq = 0
+  /**
+   * Sessions the guard does not apply to — in practice, the arbiters Kamino
+   * dispatches. An arbiter works in a folder full of siblings by definition, so
+   * without this it would be blocked by the very collision it was sent to fix,
+   * and its own edits would register as yet another claim for the next clone to
+   * trip over. Membership is granted by Kamino, never inferred.
+   */
+  private exempt = new Set<string>()
+  /** an arbiter will pick this up — change the advice, not the ruling */
+  private arbiterEnabled = false
 
   constructor(private readonly settingsPath?: string) {
     super()
@@ -190,6 +214,23 @@ export class Deconflictor extends EventEmitter {
 
   getMode(): DeconflictMode {
     return this.mode
+  }
+
+  /** Exempt an arbiter for as long as it lives. */
+  exemptSession(sessionId: string): void {
+    this.exempt.add(sessionId)
+    // an arbiter that already touched files before we learned its session id
+    // would otherwise leave a claim behind after it stands down
+    this.claims.delete(sessionId)
+  }
+
+  unexemptSession(sessionId: string): void {
+    this.exempt.delete(sessionId)
+    this.claims.delete(sessionId)
+  }
+
+  setArbiterEnabled(on: boolean): void {
+    this.arbiterEnabled = on
   }
 
   setMode(mode: DeconflictMode): void {
@@ -211,6 +252,7 @@ export class Deconflictor extends EventEmitter {
   /** A clone touched a file — it now has work in flight in that folder. */
   noteToolUse(sessionId: string, name: string, cloneName: string, cwd: string, input?: Record<string, unknown>): void {
     if (!EDIT_TOOLS.has(name)) return
+    if (this.exempt.has(sessionId)) return
     const file = typeof input?.file_path === 'string' ? input.file_path : null
     if (!file) return
     const now = Date.now()
@@ -352,6 +394,7 @@ export class Deconflictor extends EventEmitter {
     cloneName?: string
   }): { deny: true; reason: string } | null {
     if (this.mode === 'off') return null
+    if (this.exempt.has(args.sessionId)) return null
     if (args.toolName !== 'Bash' && args.toolName !== 'PowerShell') return null
     const command = typeof args.input?.command === 'string' ? args.input.command : ''
     if (!command || !/\bgit\b/i.test(command)) return null
@@ -378,14 +421,17 @@ export class Deconflictor extends EventEmitter {
 
     const who = others.map((o) => o.name).join(', ')
     const files = [...new Set(others.flatMap((o) => [...o.files.keys()]))].slice(0, 6)
+    const denied = this.mode === 'enforce'
+    // the arbiter only ever follows a real denial — in warn mode the command
+    // runs, so promising the clone that orders are coming would be a lie
+    const arbitrating = denied && this.arbiterEnabled
     const reason =
       `Kamino airspace control: ${who} ${others.length === 1 ? 'is' : 'are'} working in this same folder ` +
       `right now and ${others.length === 1 ? 'has' : 'have'} uncommitted edits in flight` +
       (files.length ? ` (${files.map((f) => f.split(/[\\/]/).pop()).join(', ')})` : '') +
       `. \`${hit.what}\` would ${hit.risk === 'stage-all' ? 'commit their unfinished work into your branch' : 'destroy their uncommitted changes'}. ` +
-      RISK_ADVICE[hit.risk]
+      (arbitrating ? ARBITER_ADVICE : RISK_ADVICE[hit.risk])
 
-    const denied = this.mode === 'enforce'
     if (denied) this.prevented += 1
     // it ran after all (warn mode), so a commit in it did land
     else releaseSelf()

@@ -130,6 +130,47 @@ check('non-shell tools are ignored', d.decide({ sessionId: 'sess-B', cwd: REPO, 
 check('a shell command with no git is ignored', d.decide({ sessionId: 'sess-B', cwd: REPO, ...bash('npm run build') }), null)
 
 // ---------------------------------------------------------------------------
+// arbiter interplay. Two things must hold or the arbiter deadlocks or lies:
+// an exempt session is neither blocked nor counted, and the advice only
+// promises orders when a denial actually happened.
+// ---------------------------------------------------------------------------
+{
+  const a = new Deconflictor()
+  a.setMode('enforce')
+  a.setArbiterEnabled(true)
+  a.noteToolUse('sess-A', 'Edit', 'Kenobi', REPO, { file_path: `${REPO}\\sync.ts` })
+
+  const held = a.decide({ sessionId: 'sess-B', cwd: REPO, cloneName: 'Rex', ...bash('git add -A') })
+  check('the collision is still denied with an arbiter coming', held?.deny, true)
+  check('the clone is told to stand down', /arbiter/i.test(held?.reason ?? ''), true)
+  check('and told explicitly not to ask you', /Do NOT ask the user/.test(held?.reason ?? ''), true)
+  check('the old improvise-it-yourself advice is gone', /Stage only the files you changed/.test(held?.reason ?? ''), false)
+
+  // the arbiter itself works in a folder full of siblings by definition
+  a.exemptSession('sess-ARB')
+  check('an arbiter is not blocked by the collision it was sent to fix', a.decide({ sessionId: 'sess-ARB', cwd: REPO, ...bash('git add src/sync.ts') }), null)
+  check('nor by a destructive command it is forbidden anyway', a.decide({ sessionId: 'sess-ARB', cwd: REPO, ...bash('git reset --hard') }), null)
+
+  // and its own edits must not become the next clone's obstacle
+  a.noteToolUse('sess-ARB', 'Edit', 'arbiter', REPO, { file_path: `${REPO}\\sync.ts` })
+  check('an arbiter stakes no claim of its own', a.claimList().some((c) => c.sessionId === 'sess-ARB'), false)
+
+  a.unexemptSession('sess-ARB')
+  check('the exemption ends when it stands down', a.decide({ sessionId: 'sess-ARB', cwd: REPO, ...bash('git reset --hard') })?.deny, true)
+}
+
+{
+  // warn mode lets the command run, so promising orders that will never come
+  // would strand the clone waiting
+  const w = new Deconflictor()
+  w.setMode('warn')
+  w.setArbiterEnabled(true)
+  w.noteToolUse('sess-A', 'Edit', 'Kenobi', REPO, { file_path: `${REPO}\\a.ts` })
+  check('warn mode still allows', w.decide({ sessionId: 'sess-B', cwd: REPO, ...bash('git add -A') }), null)
+  check('warn mode promises no arbiter', /arbiter/i.test(w.events()[0]?.command ?? ''), false)
+}
+
+// ---------------------------------------------------------------------------
 // contested files — observation only, and it must not cry wolf: one clone
 // editing its own file repeatedly is not contention
 // ---------------------------------------------------------------------------
@@ -350,6 +391,6 @@ if (failed > 0) {
   process.exitCode = 1
 } else {
   console.log(
-    `all green: ${CASES.length} git-classifier cases + 18 airspace decision + 9 contention + 6 worktree + 27 hyperdrive checks`
+    `all green: ${CASES.length} git-classifier cases + 18 airspace decision + 10 arbiter + 9 contention + 6 worktree + 27 hyperdrive checks`
   )
 }
