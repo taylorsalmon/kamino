@@ -33,7 +33,7 @@ import {
   type TranscriptRecord
 } from './claude-data'
 import { TranscriptTailer } from './transcript-tailer'
-import type { FleetSnapshot, Instance, InstanceState, PendingAskKind } from '../shared/types'
+import type { FleetSnapshot, Instance, InstanceState, PendingAskKind, PrLink } from '../shared/types'
 
 const DEAD_RETENTION_MS = 24 * 60 * 60 * 1000
 
@@ -288,6 +288,16 @@ export class InstanceStore extends EventEmitter {
 
   get(sessionId: string): Instance | null {
     return this.tracked.get(sessionId)?.instance ?? null
+  }
+
+  /** Record a PR Kamino raised on the clone's behalf — its transcript will
+   *  never mention it, so without this the chip and the status poller only
+   *  learn about it after a restart finds it on GitHub. */
+  addPr(sessionId: string, pr: PrLink): void {
+    const inst = this.tracked.get(sessionId)?.instance
+    if (!inst || inst.recent.prs.some((p) => p.url === pr.url)) return
+    inst.recent.prs.push(pr)
+    this.queueBroadcast()
   }
 
   // -------------------------------------------------------------------------

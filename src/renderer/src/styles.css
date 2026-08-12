@@ -753,6 +753,19 @@ body {
   margin-left: 5px;
 }
 
+/* the always-there PR button while no PR exists yet — one click raises it */
+.pr-raise[data-busy='yes'] {
+  opacity: 0.6;
+  cursor: progress;
+}
+.pr-raise[data-err='yes'] {
+  color: var(--coral);
+  border-color: var(--coral);
+}
+.pr-link.pr-raise[data-err='yes']:hover {
+  background: rgba(224, 108, 100, 0.12);
+}
+
 .queued-list {
   display: flex;
   flex-direction: column;

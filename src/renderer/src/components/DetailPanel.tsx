@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Instance, PrStatusMap } from '../../../shared/types'
 import { elapsed, fmtTokens, prBadge, stateWord } from '../format'
 import { RotBar } from './RotBar'
+import { canRaisePr, RaisePrButton } from './RaisePrButton'
 
 export function DetailPanel(props: {
   instance: Instance
@@ -157,10 +158,14 @@ export function DetailPanel(props: {
         </div>
       )}
 
-      {inst.recent.prs.length > 0 && (
+      {(inst.recent.prs.length > 0 || canRaisePr(inst)) && (
         <div className="section">
           <div className="section-label">Pull requests</div>
           <div className="pr-list">
+            {/* no PR yet → the same slot holds the raise button instead */}
+            {inst.recent.prs.length === 0 && (
+              <RaisePrButton sessionId={inst.sessionId} variant="row" />
+            )}
             {inst.recent.prs.map((pr) => {
               const badge = prBadge(props.prStatus?.[pr.url])
               return (

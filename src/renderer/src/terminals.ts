@@ -232,6 +232,12 @@ export function getOrCreateTerminal(ptyId: string): TermEntry {
     // the CLI paints much of its UI in its own truecolor, which we can't
     // theme — but xterm can force washed-out text up to readable contrast
     minimumContrastRatio: 4.5,
+    // OSC 8 hyperlinks (the CLI and gh both emit them) are xterm's own link
+    // type, separate from the regex linkifier below. Without a handler xterm
+    // activates them with window.open, which lands in the main process by a
+    // different route than every other link in the app — one click, two ways
+    // to the browser. Send both through openExternal.
+    linkHandler: { activate: (_e, uri) => window.fleet.openExternal(uri) },
     theme: THEMES[cliTheme]
   })
   const fit = new FitAddon()

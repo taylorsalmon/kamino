@@ -10,12 +10,14 @@ import { hooksInstalled, installHooks, migrateHooks } from './hook-installer'
 import { recentProjects, recentSessions } from './recents'
 import { recap } from './recap'
 import { PrStatusPoller } from './pr-status'
+import { raisePr } from './pr-create'
 import { transcriptTail } from './transcript-peek'
 import { checkRepo } from './wrapup'
 import { HandoffRunner } from './handoff'
 import { Deconflictor } from './deconflict'
 import { ensureWorktreeIgnored } from './worktree'
 import { Hyperdrive, type PrOwner } from './hyperdrive'
+import { openExternalOnce, setOpenLogPath } from './open-external'
 import { Arbiter } from './arbiter'
 import type {
   ArbiterCase,
@@ -168,7 +170,7 @@ function createWindow(): void {
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    openExternalOnce(url, 'window-open')
     return { action: 'deny' }
   })
 
@@ -185,6 +187,7 @@ function broadcast(channel: string, ...args: unknown[]): void {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('au.com.lkg.kamino') // Windows toast identity
+  setOpenLogPath(path.join(app.getPath('userData'), 'open-external.log'))
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: true })
   migrateHooks() // repair hook commands written by older Fleet versions
   store.setEmbeddedPidSource(() => ptys.pids())
@@ -267,6 +270,18 @@ app.whenReady().then(() => {
   // ── fleet ────────────────────────────────────────────────────────────
   ipcMain.handle('fleet:get', () => store.snapshot())
   ipcMain.handle('pr:status:get', () => prPoller.snapshot())
+
+  // ── the always-there PR button: raise (or find) the PR for a clone's branch
+  ipcMain.handle('pr:create', async (_e, sessionId: string) => {
+    const inst = store.get(sessionId)
+    if (!inst) return { ok: false, error: 'unknown session' }
+    const res = await raisePr(inst.cwd)
+    if (res.ok && res.url && typeof res.number === 'number') {
+      // snapshot listener re-feeds prPoller.setWatched, which sweeps the new URL
+      store.addPr(sessionId, { number: res.number, url: res.url })
+    }
+    return res
+  })
 
   // the CLI paints for its own theme; the embedded terminal must match it.
   // Claude Code stores it in ~/.claude.json ("theme"); absent = dark.
@@ -398,7 +413,7 @@ app.whenReady().then(() => {
 
   // ── misc ─────────────────────────────────────────────────────────────
   ipcMain.handle('open:external', (_e, url: string) => {
-    if (typeof url === 'string' && /^https?:\/\//.test(url)) shell.openExternal(url)
+    openExternalOnce(url, 'ipc')
   })
   ipcMain.handle('open:path', (_e, p: string) => {
     if (typeof p === 'string') shell.openPath(p)

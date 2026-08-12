@@ -10,6 +10,7 @@ import { CheatSheet } from './components/CheatSheet'
 import { HandoffDialog } from './components/HandoffDialog'
 import { AirspaceDialog } from './components/AirspaceDialog'
 import { HyperdriveDialog } from './components/HyperdriveDialog'
+import { canRaisePr, RaisePrButton } from './components/RaisePrButton'
 import { focusTerminal, setTermFontSize } from './terminals'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
@@ -909,6 +910,10 @@ export default function App(): React.JSX.Element {
                     >
                       +{selectedInstance.recent.prs.length - 3}
                     </span>
+                  )}
+                  {/* same slot before any PR exists — one click raises it */}
+                  {selectedInstance.recent.prs.length === 0 && canRaisePr(selectedInstance) && (
+                    <RaisePrButton sessionId={selectedInstance.sessionId} variant="chip" />
                   )}
                   {selectedInstance.now.queued.length > 0 && (
                     <span className="pane-chip queue">⧗ {selectedInstance.now.queued.length} queued</span>

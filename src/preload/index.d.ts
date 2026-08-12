@@ -1,4 +1,4 @@
-import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
+import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 declare global {
   interface Window {
@@ -7,6 +7,7 @@ declare global {
       onFleet: (cb: (snap: FleetSnapshot) => void) => () => void
       getPrStatus: () => Promise<PrStatusMap>
       onPrStatus: (cb: (map: PrStatusMap) => void) => () => void
+      createPr: (sessionId: string) => Promise<PrCreateResult>
       spawn: (req: LaunchRequest) => Promise<PtyInfo>
       ptyInput: (ptyId: string, data: string) => void
       ptyResize: (ptyId: string, cols: number, rows: number) => void

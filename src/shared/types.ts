@@ -45,6 +45,17 @@ export interface PrStatus {
 /** Keyed by PR url. */
 export type PrStatusMap = Record<string, PrStatus>
 
+/** Outcome of the always-there PR button: created fresh, found the one that
+ *  already existed, or failed with a reason the user can act on. */
+export interface PrCreateResult {
+  ok: boolean
+  url?: string
+  number?: number
+  /** an open PR for this branch already existed — nothing was created */
+  existed?: boolean
+  error?: string
+}
+
 export interface InstanceNow {
   /** Latest ai-title — the evolving one-line task description */
   title: string
