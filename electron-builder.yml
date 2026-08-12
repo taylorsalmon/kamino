@@ -23,5 +23,15 @@ nsis:
   oneClick: true
   perMachine: false
   deleteAppDataOnUninstall: false
+  # dashes, not spaces: GitHub rewrites spaces in release asset names, and the
+  # updater would 404 on the name latest.yml promises
+  artifactName: '${productName}-Setup-${version}.${ext}'
+# where electron-updater looks for new versions (embedded as app-update.yml).
+# The workflow does the actual publishing; this also makes the build emit
+# latest.yml, which the updater reads to learn the newest version + checksum.
+publish:
+  provider: github
+  owner: taylorsalmon
+  repo: kamino
 # @lydell/node-pty is prebuilt N-API — rebuilding would need a local toolchain and isn't required
 npmRebuild: false

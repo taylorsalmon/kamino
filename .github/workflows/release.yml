@@ -48,4 +48,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag --title $tag --notes "Kamino $tag — merged to main at ${{ github.sha }}"
           }
-          gh release upload $tag "$($exe.FullName)" --clobber
+          # latest.yml + blockmap are the auto-update feed: running apps poll
+          # latest.yml for the newest version and verify the exe against its
+          # sha512, and the blockmap lets them download only what changed
+          $extras = Get-ChildItem release/latest.yml, release/*.exe.blockmap
+          gh release upload $tag "$($exe.FullName)" @($extras.FullName) --clobber

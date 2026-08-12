@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
+import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, UpdateState, WrapupReport } from '../shared/types'
 
 const api = {
   // fleet status
@@ -101,6 +101,16 @@ const api = {
     const listener = (_e: unknown, p: HandoffProgress): void => cb(p)
     ipcRenderer.on('handoff:progress', listener)
     return () => ipcRenderer.removeListener('handoff:progress', listener)
+  },
+
+  // auto-update: flag when a newer Kamino is downloaded and staged
+  updateGet: (): Promise<UpdateState> => ipcRenderer.invoke('update:get'),
+  /** quit, install the staged version silently, relaunch. false = user cancelled */
+  updateRestart: (): Promise<boolean> => ipcRenderer.invoke('update:restart'),
+  onUpdate: (cb: (st: UpdateState) => void): (() => void) => {
+    const listener = (_e: unknown, st: UpdateState): void => cb(st)
+    ipcRenderer.on('update:state', listener)
+    return () => ipcRenderer.removeListener('update:state', listener)
   },
 
   // hooks + focus routing

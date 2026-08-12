@@ -121,6 +121,31 @@ body {
   font-size: 10.5px;
 }
 
+/* the auto-update flag — same shape as the hooks banner, calmer color:
+   this is good news, not a fault */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(126, 166, 116, 0.1);
+  border-bottom: 1px solid var(--line);
+  color: var(--sage);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.update-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--faint);
+  cursor: pointer;
+  font-size: 12px;
+}
+.update-dismiss:hover {
+  color: var(--text);
+}
+
 /* ── Top bar ──────────────────────────────────────────────────────────── */
 
 .topbar {
