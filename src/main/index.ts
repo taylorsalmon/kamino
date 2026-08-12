@@ -16,6 +16,7 @@ import { HandoffRunner } from './handoff'
 import { Deconflictor } from './deconflict'
 import { ensureWorktreeIgnored } from './worktree'
 import { Hyperdrive, type PrOwner } from './hyperdrive'
+import { openExternalOnce, setOpenLogPath } from './open-external'
 import { Arbiter } from './arbiter'
 import type {
   ArbiterCase,
@@ -168,7 +169,7 @@ function createWindow(): void {
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    openExternalOnce(url, 'window-open')
     return { action: 'deny' }
   })
 
@@ -185,6 +186,7 @@ function broadcast(channel: string, ...args: unknown[]): void {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('au.com.lkg.kamino') // Windows toast identity
+  setOpenLogPath(path.join(app.getPath('userData'), 'open-external.log'))
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: true })
   migrateHooks() // repair hook commands written by older Fleet versions
   store.setEmbeddedPidSource(() => ptys.pids())
@@ -398,7 +400,7 @@ app.whenReady().then(() => {
 
   // ── misc ─────────────────────────────────────────────────────────────
   ipcMain.handle('open:external', (_e, url: string) => {
-    if (typeof url === 'string' && /^https?:\/\//.test(url)) shell.openExternal(url)
+    openExternalOnce(url, 'ipc')
   })
   ipcMain.handle('open:path', (_e, p: string) => {
     if (typeof p === 'string') shell.openPath(p)
