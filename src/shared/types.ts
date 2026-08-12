@@ -352,6 +352,20 @@ export interface HyperdriveState {
   dispatched: number
 }
 
+/**
+ * Auto-update lifecycle. The renderer only raises the flag at 'ready' — by
+ * then the installer is already downloaded and verified, so the one visible
+ * action is always "restart now", never "wait for a download".
+ */
+export interface UpdateState {
+  status: 'idle' | 'downloading' | 'ready' | 'error'
+  /** the newest released version, once known */
+  version?: string
+  /** download progress 0–100 while downloading */
+  percent?: number
+  error?: string
+}
+
 /** One message in the hover-peek transcript tail. */
 export interface TranscriptTailMsg {
   who: 'you' | 'clone'
