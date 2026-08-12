@@ -10,6 +10,7 @@ import { hooksInstalled, installHooks, migrateHooks } from './hook-installer'
 import { recentProjects, recentSessions } from './recents'
 import { recap } from './recap'
 import { PrStatusPoller } from './pr-status'
+import { raisePr } from './pr-create'
 import { transcriptTail } from './transcript-peek'
 import { checkRepo } from './wrapup'
 import { HandoffRunner } from './handoff'
@@ -269,6 +270,18 @@ app.whenReady().then(() => {
   // ── fleet ────────────────────────────────────────────────────────────
   ipcMain.handle('fleet:get', () => store.snapshot())
   ipcMain.handle('pr:status:get', () => prPoller.snapshot())
+
+  // ── the always-there PR button: raise (or find) the PR for a clone's branch
+  ipcMain.handle('pr:create', async (_e, sessionId: string) => {
+    const inst = store.get(sessionId)
+    if (!inst) return { ok: false, error: 'unknown session' }
+    const res = await raisePr(inst.cwd)
+    if (res.ok && res.url && typeof res.number === 'number') {
+      // snapshot listener re-feeds prPoller.setWatched, which sweeps the new URL
+      store.addPr(sessionId, { number: res.number, url: res.url })
+    }
+    return res
+  })
 
   // the CLI paints for its own theme; the embedded terminal must match it.
   // Claude Code stores it in ~/.claude.json ("theme"); absent = dark.

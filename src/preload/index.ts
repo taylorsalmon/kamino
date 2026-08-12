@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
+import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, WrapupReport } from '../shared/types'
 
 const api = {
   // fleet status
@@ -12,6 +12,9 @@ const api = {
 
   // live PR status (gh CLI)
   getPrStatus: (): Promise<PrStatusMap> => ipcRenderer.invoke('pr:status:get'),
+  /** push the clone's branch and raise its PR (or find the one that exists) */
+  createPr: (sessionId: string): Promise<PrCreateResult> =>
+    ipcRenderer.invoke('pr:create', sessionId),
   onPrStatus: (cb: (map: PrStatusMap) => void): (() => void) => {
     const listener = (_e: unknown, map: PrStatusMap): void => cb(map)
     ipcRenderer.on('pr:status', listener)

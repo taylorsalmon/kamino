@@ -5,6 +5,7 @@ import { TerminalView } from './TerminalView'
 import { DetailPanel } from './DetailPanel'
 import { RotBar } from './RotBar'
 import { TaskTrack } from './TaskTrack'
+import { canRaisePr, RaisePrButton } from './RaisePrButton'
 
 /**
  * One cell of the grid view: a live status strip on top and, below it, the
@@ -203,6 +204,10 @@ export function GridPane(props: {
                 </button>
               )
             })()}
+          {/* same slot before any PR exists — one click raises it */}
+          {inst && inst.recent.prs.length === 0 && canRaisePr(inst) && (
+            <RaisePrButton sessionId={inst.sessionId} variant="chip" />
+          )}
           {inst && inst.now.queued.length > 0 && (
             <span className="pane-chip queue">⧗ {inst.now.queued.length}</span>
           )}
