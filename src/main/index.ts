@@ -20,6 +20,7 @@ import { Hyperdrive, type PrOwner } from './hyperdrive'
 import { openExternalOnce, setOpenLogPath } from './open-external'
 import { Arbiter } from './arbiter'
 import { Updater } from './updater'
+import { Retitler } from './retitle'
 import type {
   ArbiterCase,
   ArbiterSettings,
@@ -70,6 +71,8 @@ const hyperdrive = new Hyperdrive(
   path.join(app.getPath('userData'), 'hyperdrive.json')
 )
 const updater = new Updater()
+// pane titles go stale the moment a session moves on from its opening prompt
+const retitler = new Retitler(store)
 let win: BrowserWindow | null = null
 /** true once the user has confirmed the update restart — the close guard must
  *  stand down or its dialog would cancel the very quit the user just approved */
@@ -198,6 +201,7 @@ app.whenReady().then(() => {
   migrateHooks() // repair hook commands written by older Fleet versions
   store.setEmbeddedPidSource(() => ptys.pids())
   store.start()
+  retitler.start()
   store.on('snapshot', (snap: FleetSnapshot) => {
     broadcast('fleet:snapshot', snap)
     prPoller.setWatched(snap.instances.flatMap((i) => i.recent.prs.map((p) => p.url)))
@@ -473,6 +477,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   ptys.disposeAll()
   store.stop()
+  retitler.stop()
   prPoller.stop()
   updater.stop()
   // stop answering PreToolUse before the port closes, so nothing is left

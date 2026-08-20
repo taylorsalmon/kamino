@@ -1543,7 +1543,7 @@ body.pane-resizing .terminal-view {
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
-  color: var(--faint);
+  color: var(--muted);
   flex-shrink: 0;
   padding-top: 1px;
 }
@@ -1564,14 +1564,14 @@ body.pane-resizing .terminal-view {
 .pane-quote {
   font-family: var(--mono);
   font-size: 10.5px;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--text) 60%, var(--muted));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
 }
 .pane-quote .who {
-  color: var(--faint);
+  color: var(--muted);
   font-weight: 700;
 }
 
