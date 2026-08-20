@@ -52,6 +52,7 @@ If Electron's binary fails to download during install (corporate network), run `
 - **Needs-you detection** — global Claude Code hooks (Notification/Stop/UserPromptSubmit) POST to a localhost receiver (port 47831). When a clone blocks on a permission or question you get a Windows toast; clicking it focuses that instance.
 - **One-click answers** — a blocked pane shows the actual question in an overlay banner with buttons: numbered options for multiple-choice, **yes** for permission/plan prompts, **proceed** ("Proceed with your best judgment.") for open questions. Keystrokes go straight into the PTY — no focusing, no typing.
 - **Catch me up** — per-instance button that distills the transcript tail and asks Haiku (via your own `claude -p` auth) for a NOW / DONE / NEEDS brief. Cached until the session changes.
+- **Live titles** — Claude Code names a session once, from its opening prompt, and then repeats that name forever; three tasks later the board is still describing work that finished an hour ago. Kamino watches for a session outrunning its title, then asks Haiku for a new one from the recent prompts and from what the clone actually did. Only after new turns, never more than once every 90s per clone, and a clone still on the same job answers SAME and nothing moves — about 3s and a third of a cent a time.
 - **Quick actions** — open PRs, open folder / VS Code, copy branch or resume command, decommission a wedged clone.
 
 ## Fleet commands
@@ -125,6 +126,8 @@ src/main/
   worktree.ts          keeps a repo from staging its own nested worktrees
   hyperdrive.ts        automatic fixes for red CI and merge conflicts
   recap.ts             "catch me up" via claude -p (haiku)
+  retitle.ts           live pane titles — the ai-title goes stale, this does not
+  claude-cli.ts        one-shot claude -p calls, stripped back to the question
   handoff.ts           reincarnation: brief → successor → seed, and /compact
 src/renderer/          React UI (the wall, roster cards, dialogs)
 ```

@@ -175,6 +175,9 @@ export interface TranscriptRecord {
   gitBranch?: string
   cwd?: string
   isSidechain?: boolean
+  /** how the session was started: 'cli' for a real one, 'sdk-cli' for a
+   *  one-shot headless call like Kamino's own recap and title jobs */
+  entrypoint?: string
   isMeta?: boolean
   // type-specific fields, accessed defensively:
   aiTitle?: string

@@ -19,6 +19,7 @@ import { ensureWorktreeIgnored } from './worktree'
 import { Hyperdrive, type PrOwner } from './hyperdrive'
 import { openExternalOnce, setOpenLogPath } from './open-external'
 import { Arbiter } from './arbiter'
+import { Retitler } from './retitle'
 import type {
   ArbiterCase,
   ArbiterSettings,
@@ -68,6 +69,8 @@ const hyperdrive = new Hyperdrive(
   { ownerOf: prOwner, send: (ptyId, text) => ptys.write(ptyId, text) },
   path.join(app.getPath('userData'), 'hyperdrive.json')
 )
+// pane titles go stale the moment a session moves on from its opening prompt
+const retitler = new Retitler(store)
 let win: BrowserWindow | null = null
 
 const LONG_TURN_MS = 30_000
@@ -192,6 +195,7 @@ app.whenReady().then(() => {
   migrateHooks() // repair hook commands written by older Fleet versions
   store.setEmbeddedPidSource(() => ptys.pids())
   store.start()
+  retitler.start()
   store.on('snapshot', (snap: FleetSnapshot) => {
     broadcast('fleet:snapshot', snap)
     prPoller.setWatched(snap.instances.flatMap((i) => i.recent.prs.map((p) => p.url)))
@@ -444,6 +448,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   ptys.disposeAll()
   store.stop()
+  retitler.stop()
   prPoller.stop()
   // stop answering PreToolUse before the port closes, so nothing is left
   // half-deciding while we shut down

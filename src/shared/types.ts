@@ -57,7 +57,9 @@ export interface PrCreateResult {
 }
 
 export interface InstanceNow {
-  /** Latest ai-title — the evolving one-line task description */
+  /** One-line description of the task. Starts as the session's own ai-title
+   *  (derived from its opening prompt) and is replaced by the Retitler with
+   *  what the clone has actually moved on to. */
   title: string
   /** What it is literally doing right now: "Editing src/lib/seat.ts", "Running: npm test", "Waiting: approve Bash(...)" */
   activity: string

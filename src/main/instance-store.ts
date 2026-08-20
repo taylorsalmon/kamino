@@ -62,6 +62,8 @@ interface Tracked {
   /** Last tool_use the assistant issued with no result yet — what a
    *  permission prompt would be blocked on. Cleared when its result lands. */
   lastToolUse: PendingToolUse | null
+  /** the Retitler has replaced the session's own ai-title — see setLiveTitle */
+  titleLive?: boolean
   diedAt?: number
 }
 
@@ -300,6 +302,20 @@ export class InstanceStore extends EventEmitter {
     this.queueBroadcast()
   }
 
+  /**
+   * Replace the pane's task line with a freshly generated one (see Retitler).
+   * Sticky once set: the session keeps re-emitting the ai-title it derived
+   * from its opening prompt, and that must not pull the pane back to it.
+   */
+  setLiveTitle(sessionId: string, title: string): void {
+    const t = this.tracked.get(sessionId)
+    if (!t || !title) return
+    t.titleLive = true
+    if (t.instance.now.title === title) return
+    t.instance.now.title = title
+    this.queueBroadcast()
+  }
+
   // -------------------------------------------------------------------------
 
   private refreshRoster(): void {
@@ -419,7 +435,9 @@ export class InstanceStore extends EventEmitter {
 
     switch (rec.type) {
       case 'ai-title':
-        if (rec.aiTitle) inst.now.title = rec.aiTitle
+        // written once from the opening prompt, then repeated verbatim for the
+        // rest of the session — it must never drag a live title back to it
+        if (rec.aiTitle && !t.titleLive) inst.now.title = rec.aiTitle
         return
       case 'agent-name':
         return

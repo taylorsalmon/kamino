@@ -88,6 +88,7 @@ function summarize(file: string, sessionId: string, mtime: number): RecentSessio
   let gitBranch = ''
   let title = ''
   let lastPrompt = ''
+  let headless = false
   const prs: number[] = []
   try {
     const size = fs.statSync(file).size
@@ -104,6 +105,7 @@ function summarize(file: string, sessionId: string, mtime: number): RecentSessio
         const rec = parseRecord(line)
         if (!rec) continue
         if (rec.cwd && !cwd) cwd = rec.cwd
+        if (rec.entrypoint === 'sdk-cli') headless = true
         if (rec.gitBranch) gitBranch = rec.gitBranch
         if (rec.type === 'ai-title' && rec.aiTitle) title = rec.aiTitle
         if (rec.type === 'last-prompt' && rec.lastPrompt) lastPrompt = rec.lastPrompt
@@ -118,5 +120,8 @@ function summarize(file: string, sessionId: string, mtime: number): RecentSessio
     return null
   }
   if (!cwd) return null // can't resume without knowing where
+  // one-shot `claude -p` runs — Kamino's own recap and title calls, and anything
+  // else scripted — are transcripts nobody would want to resume into
+  if (headless) return null
   return { sessionId, cwd, gitBranch, title, lastPrompt, prs, mtime }
 }
