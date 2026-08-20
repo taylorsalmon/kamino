@@ -19,6 +19,7 @@ import { ensureWorktreeIgnored } from './worktree'
 import { Hyperdrive, type PrOwner } from './hyperdrive'
 import { openExternalOnce, setOpenLogPath } from './open-external'
 import { Arbiter } from './arbiter'
+import { Updater } from './updater'
 import { Retitler } from './retitle'
 import type {
   ArbiterCase,
@@ -69,9 +70,13 @@ const hyperdrive = new Hyperdrive(
   { ownerOf: prOwner, send: (ptyId, text) => ptys.write(ptyId, text) },
   path.join(app.getPath('userData'), 'hyperdrive.json')
 )
+const updater = new Updater()
 // pane titles go stale the moment a session moves on from its opening prompt
 const retitler = new Retitler(store)
 let win: BrowserWindow | null = null
+/** true once the user has confirmed the update restart — the close guard must
+ *  stand down or its dialog would cancel the very quit the user just approved */
+let updateRestarting = false
 
 const LONG_TURN_MS = 30_000
 
@@ -158,6 +163,7 @@ function createWindow(): void {
 
   // closing the window kills every embedded clone — never do that silently
   win.on('close', (e) => {
+    if (updateRestarting) return // already confirmed on the update banner
     const n = ptys.list().length
     if (n === 0) return
     const choice = dialog.showMessageBoxSync(win!, {
@@ -219,6 +225,29 @@ app.whenReady().then(() => {
   })
   hookServer.start()
   hookServer.on('hook', onHook)
+
+  // ── auto-update: the flag that says a newer Kamino is staged ─────────
+  updater.start()
+  updater.on('state', (st) => broadcast('update:state', st))
+  ipcMain.handle('update:get', () => updater.snapshot())
+  ipcMain.handle('update:restart', async () => {
+    const n = ptys.list().length
+    if (n > 0) {
+      const res = await dialog.showMessageBox(win!, {
+        type: 'warning',
+        buttons: ['Restart and upgrade', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        title: 'Kamino',
+        message: `${n} embedded clone${n === 1 ? ' is' : 's are'} still running.`,
+        detail: 'Restarting into the new version ends their sessions. Unsaved work in a running turn is lost.'
+      })
+      if (res.response !== 0) return false
+    }
+    updateRestarting = true
+    updater.restart()
+    return true
+  })
 
   // ── airspace control ─────────────────────────────────────────────────
   // the ledger of who is mid-edit where, fed straight off the transcript
@@ -450,6 +479,7 @@ app.on('window-all-closed', () => {
   store.stop()
   retitler.stop()
   prPoller.stop()
+  updater.stop()
   // stop answering PreToolUse before the port closes, so nothing is left
   // half-deciding while we shut down
   hookServer.setPreToolDecider(null)

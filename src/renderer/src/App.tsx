@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FleetSnapshot, Instance, PrStatusMap } from '../../shared/types'
+import type { FleetSnapshot, Instance, PrStatusMap, UpdateState } from '../../shared/types'
 import { InstanceCard } from './components/InstanceCard'
 import { DetailPanel } from './components/DetailPanel'
 import { TerminalView } from './components/TerminalView'
@@ -144,6 +144,13 @@ export default function App(): React.JSX.Element {
 
   const [hooksOk, setHooksOk] = useState(true)
 
+  // auto-update flag — shown only at 'ready', when the new version is already
+  // downloaded and one click means restart. Dismissal is per-version so the
+  // banner returns for the NEXT release, and a dismissed update still installs
+  // on the next normal quit.
+  const [update, setUpdate] = useState<UpdateState>({ status: 'idle' })
+  const [updateDismissedFor, setUpdateDismissedFor] = useState<string | null>(null)
+
   // Focus roster: decommissioned clones fold away behind an accordion so the
   // live fleet isn't buried under history. Closed by default; auto-opens if
   // the clone you're looking at dies, so its card never vanishes underneath you.
@@ -182,8 +189,10 @@ export default function App(): React.JSX.Element {
     window.fleet.getPrStatus().then(setPrStatus)
     window.fleet.ptyList().then(setPtyRefs) // survive renderer reloads
     window.fleet.hooksStatus().then(setHooksOk)
+    window.fleet.updateGet().then(setUpdate)
     const offFleet = window.fleet.onFleet(setSnap)
     const offPr = window.fleet.onPrStatus(setPrStatus)
+    const offUpdate = window.fleet.onUpdate(setUpdate)
     const offExit = window.fleet.onPtyExit(() => window.fleet.ptyList().then(setPtyRefs))
     const offSelect = window.fleet.onSelectSession((sessionId) => {
       setSelectedId(sessionId)
@@ -193,6 +202,7 @@ export default function App(): React.JSX.Element {
     return () => {
       offFleet()
       offPr()
+      offUpdate()
       offExit()
       offSelect()
       clearInterval(tick)
@@ -648,6 +658,23 @@ export default function App(): React.JSX.Element {
           )}
         </div>
       </header>
+
+      {update.status === 'ready' && update.version && update.version !== updateDismissedFor && (
+        <div className="update-banner">
+          Fresh armor from the foundry — Kamino v{update.version} is downloaded and ready.
+          <button className="btn primary" onClick={() => window.fleet.updateRestart()}>
+            Restart &amp; upgrade
+          </button>
+          <span className="hooks-note">restarting swaps every system to the new version — running clones are asked about first</span>
+          <button
+            className="update-dismiss"
+            title="Later — it installs on the next normal quit anyway"
+            onClick={() => setUpdateDismissedFor(update.version ?? null)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {!hooksOk && (
         <div className="hooks-banner">
