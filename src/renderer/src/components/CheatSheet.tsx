@@ -3,7 +3,8 @@ import { useEffect } from 'react'
 /**
  * CheatSheet — the fleet's keyboard reference. Every binding here must also
  * be forwarded from terminals.ts (xterm owns the keyboard while a pane is
- * focused) and handled in App's mount-once key listener.
+ * focused) and handled in App's mount-once key listener. Zoom is the one
+ * exception: the main process takes those chords before the renderer sees them.
  */
 
 const ROWS: Array<{ keys: string[]; what: string }> = [
@@ -14,6 +15,8 @@ const ROWS: Array<{ keys: string[]; what: string }> = [
   { keys: ['Ctrl', 'Shift', 'N'], what: 'Commission a new clone' },
   { keys: ['Ctrl', 'Shift', 'D'], what: 'Cycle wall density — Roomy → Fit → Max' },
   { keys: ['Ctrl', 'Shift', 'S'], what: 'End-of-shift sweep' },
+  { keys: ['Ctrl', '= / −'], what: 'Zoom the whole board in / out — Ctrl + wheel works too, and it sticks across restarts' },
+  { keys: ['Ctrl', '0'], what: 'Zoom back to 100%' },
   { keys: ['F1'], what: 'This cheat sheet' }
 ]
 

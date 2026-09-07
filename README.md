@@ -68,6 +68,7 @@ Shortcuts work everywhere — even while a terminal owns the keyboard. <kbd>F1</
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd> | Commission a new clone |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> | Cycle wall density — Roomy → Fit → Max |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | End-of-shift sweep |
+| <kbd>Ctrl</kbd> + <kbd>=</kbd> / <kbd>-</kbd> / <kbd>0</kbd> | Zoom the whole board in / out / back to 100% — <kbd>Ctrl</kbd> + wheel too; remembered across restarts |
 | <kbd>F1</kbd> | Cheat sheet |
 
 ## Hyperdrive — automatic fixes
