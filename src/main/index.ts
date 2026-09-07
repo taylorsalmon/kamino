@@ -21,6 +21,7 @@ import { openExternalOnce, setOpenLogPath } from './open-external'
 import { Arbiter } from './arbiter'
 import { Updater } from './updater'
 import { Retitler } from './retitle'
+import { Zoom } from './zoom'
 import type {
   ArbiterCase,
   ArbiterSettings,
@@ -31,7 +32,8 @@ import type {
   HyperdriveEvent,
   HyperdriveSettings,
   Instance,
-  LaunchRequest
+  LaunchRequest,
+  ZoomState
 } from '../shared/types'
 
 const store = new InstanceStore(path.join(app.getPath('userData'), 'model-windows.json'))
@@ -73,6 +75,8 @@ const hyperdrive = new Hyperdrive(
 const updater = new Updater()
 // pane titles go stale the moment a session moves on from its opening prompt
 const retitler = new Retitler(store)
+// whole-board zoom (Ctrl+= / - / 0, Ctrl+wheel), remembered across restarts
+const zoom = new Zoom(path.join(app.getPath('userData'), 'zoom.json'))
 let win: BrowserWindow | null = null
 /** true once the user has confirmed the update restart — the close guard must
  *  stand down or its dialog would cancel the very quit the user just approved */
@@ -159,6 +163,8 @@ function createWindow(): void {
     }
   })
 
+  zoom.attach(win)
+
   win.on('ready-to-show', () => win?.show())
 
   // closing the window kills every embedded clone — never do that silently
@@ -225,6 +231,11 @@ app.whenReady().then(() => {
   })
   hookServer.start()
   hookServer.on('hook', onHook)
+
+  // ── zoom: the whole board scales like a browser page ─────────────────
+  zoom.on('change', (st: ZoomState) => broadcast('zoom:state', st))
+  ipcMain.handle('zoom:get', () => zoom.snapshot())
+  ipcMain.on('zoom:step', (_e, dir: string) => (dir === 'in' ? zoom.zoomIn() : zoom.zoomOut()))
 
   // ── auto-update: the flag that says a newer Kamino is staged ─────────
   updater.start()

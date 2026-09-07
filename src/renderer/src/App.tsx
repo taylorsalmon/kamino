@@ -151,6 +151,22 @@ export default function App(): React.JSX.Element {
   const [update, setUpdate] = useState<UpdateState>({ status: 'idle' })
   const [updateDismissedFor, setUpdateDismissedFor] = useState<string | null>(null)
 
+  // zoom HUD — a moment of "120%" after Ctrl+= / - / 0 or Ctrl+wheel, so you
+  // know where you landed (and when you're pinned at a limit)
+  const [zoomPct, setZoomPct] = useState<number | null>(null)
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const off = window.fleet.onZoom((st) => {
+      setZoomPct(st.percent)
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => setZoomPct(null), 1400)
+    })
+    return () => {
+      off()
+      if (timer) clearTimeout(timer)
+    }
+  }, [])
+
   // Focus roster: decommissioned clones fold away behind an accordion so the
   // live fleet isn't buried under history. Closed by default; auto-opens if
   // the clone you're looking at dies, so its card never vanishes underneath you.
@@ -1015,6 +1031,7 @@ export default function App(): React.JSX.Element {
       )}
       {showHyperdrive && <HyperdriveDialog onClose={() => setShowHyperdrive(false)} now={now} />}
       {showAirspace && <AirspaceDialog onClose={() => setShowAirspace(false)} now={now} />}
+      {zoomPct !== null && <div className="zoom-hud">{zoomPct}%</div>}
       {showCheats && <CheatSheet onClose={() => setShowCheats(false)} />}
       {showLaunch && <LaunchDialog onClose={() => setShowLaunch(false)} onLaunched={onLaunched} />}
       {showWrapup && (

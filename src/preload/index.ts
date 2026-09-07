@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, UpdateState, WrapupReport } from '../shared/types'
+import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, UpdateState, WrapupReport, ZoomState } from '../shared/types'
 
 const api = {
   // fleet status
@@ -111,6 +111,15 @@ const api = {
     const listener = (_e: unknown, st: UpdateState): void => cb(st)
     ipcRenderer.on('update:state', listener)
     return () => ipcRenderer.removeListener('update:state', listener)
+  },
+
+  // zoom: the whole board, like a browser page (the chords are taken by main)
+  zoomGet: (): Promise<ZoomState> => ipcRenderer.invoke('zoom:get'),
+  zoomStep: (dir: 'in' | 'out'): void => ipcRenderer.send('zoom:step', dir),
+  onZoom: (cb: (st: ZoomState) => void): (() => void) => {
+    const listener = (_e: unknown, st: ZoomState): void => cb(st)
+    ipcRenderer.on('zoom:state', listener)
+    return () => ipcRenderer.removeListener('zoom:state', listener)
   },
 
   // hooks + focus routing

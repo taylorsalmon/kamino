@@ -369,6 +369,12 @@ export interface UpdateState {
 }
 
 /** One message in the hover-peek transcript tail. */
+/** Whole-board zoom, like a browser page. level is Chromium's (×1.2 per level). */
+export interface ZoomState {
+  level: number
+  percent: number
+}
+
 export interface TranscriptTailMsg {
   who: 'you' | 'clone'
   text: string
