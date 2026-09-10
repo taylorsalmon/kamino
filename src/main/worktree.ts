@@ -7,21 +7,26 @@
  * standing orders will happily `git add -A` an entire second checkout into its
  * commit.
  *
- * The fix goes in .git/info/exclude rather than .gitignore: it is per-clone and
- * never committed, so Kamino can protect the repo without touching a tracked
+ * CLIs without a worktree flag of their own (Codex, custom) get the same deal
+ * from Kamino: createWorktree makes <repo>/.kamino/worktrees/<name> on branch
+ * worktree-<name>, mirroring Claude's layout so every card reads the same.
+ *
+ * The exclude goes in .git/info/exclude rather than .gitignore: it is per-clone
+ * and never committed, so Kamino can protect the repo without touching a tracked
  * file or showing up in anyone's diff.
  */
 import { execFile } from 'node:child_process'
+import * as crypto from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-const PATTERN = '.claude/worktrees/'
+const PATTERNS = ['.claude/worktrees/', '.kamino/worktrees/']
 const HEADER = '# added by Kamino: never stage a nested worktree'
 
 function git(cwd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd, windowsHide: true }, (err, stdout) =>
-      err ? reject(err) : resolve(stdout.trim())
+    execFile('git', args, { cwd, windowsHide: true }, (err, stdout, stderr) =>
+      err ? reject(new Error(String(stderr || err.message).trim())) : resolve(stdout.trim())
     )
   })
 }
@@ -46,12 +51,39 @@ export async function ensureWorktreeIgnored(cwd: string): Promise<void> {
     } catch {
       /* no exclude file yet — we create it below */
     }
-    if (current.split(/\r?\n/).some((l) => l.trim() === PATTERN)) return
+    const have = new Set(current.split(/\r?\n/).map((l) => l.trim()))
+    const missing = PATTERNS.filter((p) => !have.has(p))
+    if (missing.length === 0) return
 
     fs.mkdirSync(path.dirname(excludePath), { recursive: true })
     const prefix = current.length > 0 && !current.endsWith('\n') ? '\n' : ''
-    fs.appendFileSync(excludePath, `${prefix}${HEADER}\n${PATTERN}\n`, 'utf-8')
+    const header = current.includes(HEADER) ? '' : `${HEADER}\n`
+    fs.appendFileSync(excludePath, `${prefix}${header}${missing.join('\n')}\n`, 'utf-8')
   } catch {
     /* not a git repo, no git on PATH, read-only .git — all survivable */
   }
+}
+
+/** Something a human can read back off a branch list, unique enough per repo. */
+function autoName(): string {
+  return `clone-${crypto.randomBytes(2).toString('hex')}`
+}
+
+/**
+ * Kamino's own worktree for a CLI that has none: <repo>/.kamino/worktrees/<name>
+ * on branch worktree-<name>, branched from the current HEAD. Returns the new
+ * working folder. Throws with git's own words when the folder is not a repo or
+ * the branch already exists — a launch that would silently share a checkout is
+ * worse than one that fails.
+ */
+export async function createWorktree(cwd: string, name?: string): Promise<string> {
+  const top = await git(cwd, ['rev-parse', '--show-toplevel'])
+  if (!top) throw new Error('Not a git repository — a worktree needs one.')
+  const clean = (name ?? '').trim().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '')
+  const wt = clean || autoName()
+  const dir = path.join(top, '.kamino', 'worktrees', wt)
+  if (fs.existsSync(dir)) throw new Error(`Worktree "${wt}" already exists at ${dir}`)
+  fs.mkdirSync(path.dirname(dir), { recursive: true })
+  await git(top, ['worktree', 'add', '-b', `worktree-${wt}`, dir])
+  return dir
 }

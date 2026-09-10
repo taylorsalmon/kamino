@@ -1,10 +1,13 @@
 /**
- * Recents — recent project folders (from ~/.claude/history.jsonl) and
- * recent/resumable sessions (from transcript files across all project dirs).
+ * Recents — recent project folders and recent/resumable sessions, for the
+ * launch dialog. Claude's come from ~/.claude (history.jsonl, transcript files
+ * across the project dirs); Codex's from its rollouts. Both feed one list, so a
+ * folder you last used from either CLI is there for the other.
  */
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { CLAUDE_DIR, PROJECTS_DIR, parseRecord } from './claude-data'
+import { recentCodexProjects, recentCodexSessions } from './codex-data'
 import type { RecentProject, RecentSession } from '../shared/types'
 
 export function recentProjects(limit = 12): RecentProject[] {
@@ -24,7 +27,14 @@ export function recentProjects(limit = 12): RecentProject[] {
       }
     }
   } catch {
-    return []
+    /* no Claude history yet — Codex's folders may still fill the list */
+  }
+  try {
+    for (const p of recentCodexProjects(limit)) {
+      if (p.lastUsed > (byPath.get(p.cwd) ?? 0)) byPath.set(p.cwd, p.lastUsed)
+    }
+  } catch {
+    /* no Codex on this machine */
   }
   return [...byPath.entries()]
     .filter(([p]) => {
@@ -41,8 +51,19 @@ export function recentProjects(limit = 12): RecentProject[] {
 
 /** Scan transcripts (newest first) and summarize each for a resume picker. */
 export function recentSessions(opts: { excludeSessionIds: string[]; limit?: number }): RecentSession[] {
-  const exclude = new Set(opts.excludeSessionIds)
   const limit = opts.limit ?? 25
+  const claude = recentClaudeSessions(opts.excludeSessionIds, limit)
+  let codex: RecentSession[] = []
+  try {
+    codex = recentCodexSessions({ excludeSessionIds: opts.excludeSessionIds, limit })
+  } catch {
+    /* no Codex on this machine */
+  }
+  return [...claude, ...codex].sort((a, b) => b.mtime - a.mtime).slice(0, limit)
+}
+
+function recentClaudeSessions(excludeSessionIds: string[], limit: number): RecentSession[] {
+  const exclude = new Set(excludeSessionIds)
   const files: { file: string; mtime: number; sessionId: string }[] = []
   let dirs: string[]
   try {
@@ -123,5 +144,5 @@ function summarize(file: string, sessionId: string, mtime: number): RecentSessio
   // one-shot `claude -p` runs — Kamino's own recap and title calls, and anything
   // else scripted — are transcripts nobody would want to resume into
   if (headless) return null
-  return { sessionId, cwd, gitBranch, title, lastPrompt, prs, mtime }
+  return { sessionId, cli: 'claude', cwd, gitBranch, title, lastPrompt, prs, mtime }
 }

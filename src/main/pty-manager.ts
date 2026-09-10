@@ -1,19 +1,27 @@
 /**
- * PtyManager — spawns and owns embedded Claude Code instances.
+ * PtyManager — spawns and owns embedded clones, whichever CLI they run.
  *
- * We spawn claude.exe directly (no shell wrapper) so the PTY child pid IS the
- * pid Claude Code writes to ~/.claude/sessions/<pid>.json — that's how an
- * embedded terminal is matched to its Instance card.
+ * The executable is resolved through the CliRegistry and spawned directly (no
+ * shell wrapper). For Claude Code that matters: the PTY child pid IS the pid it
+ * writes to ~/.claude/sessions/<pid>.json, which is how an embedded terminal is
+ * matched to its Instance card. Codex has no such registry — its terminals are
+ * bound by the CodexTracker from the rollout that appears after launch.
  */
 import { EventEmitter } from 'node:events'
-import { execSync } from 'node:child_process'
 import * as pty from '@lydell/node-pty'
+import { AUTO_SHIP_ORDERS, buildArgs, CLAUDE_CLI, resolveCommand, type CliRegistry } from './cli-registry'
+import type { CliDefinition } from '../shared/types'
+
+export { AUTO_SHIP_ORDERS }
 
 export interface SpawnOptions {
   cwd: string
+  /** CliDefinition id; omitted = Claude Code */
+  cli?: string
   resumeSessionId?: string
   initialPrompt?: string
   permissionMode?: string
+  model?: string
   /** standing orders: ship finished work without being asked. Defaults on —
    *  pass false to commission a clone that leaves shipping to you. */
   autoShip?: boolean
@@ -25,11 +33,12 @@ export interface SpawnOptions {
    */
   appendSystemPrompt?: string
   /**
-   * Give this clone its own git worktree (--worktree), optionally named. One
-   * working tree each is what makes several clones on one repo genuinely
-   * parallel: a folder has a single checked-out branch, so clones sharing one
-   * commit onto the same branch and land in the same PR no matter how well
-   * they behave. Separate worktrees mean separate branches and separate PRs.
+   * Give this clone its own git worktree, optionally named. One working tree
+   * each is what makes several clones on one repo genuinely parallel: a folder
+   * has a single checked-out branch, so clones sharing one commit onto the same
+   * branch and land in the same PR no matter how well they behave. Claude makes
+   * its own (--worktree); for other CLIs the caller has already made one and
+   * passes it as cwd.
    */
   worktree?: boolean
   worktreeName?: string
@@ -37,27 +46,11 @@ export interface SpawnOptions {
   rows?: number
 }
 
-/**
- * Standing orders, appended to the clone's system prompt (--append-system-prompt)
- * rather than typed as a first prompt: a system prompt can't rot out of the
- * context window as the session grows, and it costs no turn.
- *
- * Kept free of double quotes and % so it survives being quoted onto a Windows
- * command line.
- */
-export const AUTO_SHIP_ORDERS =
-  'Shipping is part of finishing. When you complete a piece of work, do not stop at the last edit and ' +
-  'do not ask whether to ship it: commit the change with a clear message, push the branch, and open a ' +
-  'pull request (or update the one already open) describing what changed and what is left. If the work ' +
-  'is incomplete or known-broken, still commit and push it, and record the gaps in a Follow-ups section ' +
-  'of the PR description. Never leave finished work uncommitted or unpushed. The exceptions, where you ' +
-  'should not push or open a PR: you are on the repo default branch (main or master), the repo has no ' +
-  'git remote, or the user has told you not to.'
-
 export interface PtyInfo {
   ptyId: string
   pid: number
   cwd: string
+  cli: string
 }
 
 interface Held {
@@ -70,33 +63,41 @@ interface Held {
 
 const BACKLOG_LIMIT = 400_000
 
-let claudeExe: string | null = null
-function resolveClaudeExe(): string {
-  if (claudeExe) return claudeExe
-  const out = execSync('where.exe claude', { encoding: 'utf-8' })
-  claudeExe = out.split(/\r?\n/).find((l) => l.trim().endsWith('.exe'))?.trim() ?? 'claude.exe'
-  return claudeExe
-}
-
 export class PtyManager extends EventEmitter {
   private held = new Map<string, Held>()
   private nextId = 1
 
+  constructor(private readonly clis: CliRegistry) {
+    super()
+  }
+
+  /** The definition a launch will use — Claude Code unless told otherwise. */
+  definition(id: string | undefined): CliDefinition {
+    return this.clis.get(id ?? 'claude') ?? CLAUDE_CLI
+  }
+
   spawn(opts: SpawnOptions): PtyInfo {
-    const args: string[] = []
-    if (opts.resumeSessionId) args.push('--resume', opts.resumeSessionId)
-    if (opts.permissionMode && opts.permissionMode !== 'default') {
-      args.push('--permission-mode', opts.permissionMode)
+    const def = this.definition(opts.cli)
+    const resolved = resolveCommand(def)
+    if (!resolved) {
+      throw new Error(
+        `${def.label} is not installed here — "${def.command}" was not found on PATH. Fix the command under Manage CLIs, or install it.`
+      )
     }
-    if (opts.worktree) {
-      const name = opts.worktreeName?.trim()
-      args.push('--worktree')
-      if (name) args.push(name)
-    }
-    if (opts.autoShip !== false) args.push('--append-system-prompt', AUTO_SHIP_ORDERS)
-    else if (opts.appendSystemPrompt) args.push('--append-system-prompt', opts.appendSystemPrompt)
-    // the prompt goes last: everything after it would be read as more prompt
-    if (opts.initialPrompt) args.push(opts.initialPrompt)
+    const orders = opts.autoShip !== false ? AUTO_SHIP_ORDERS : opts.appendSystemPrompt
+    const args = [
+      ...resolved.prefixArgs,
+      ...buildArgs(def, {
+        cwd: opts.cwd,
+        resumeSessionId: opts.resumeSessionId,
+        initialPrompt: opts.initialPrompt,
+        permissionMode: opts.permissionMode,
+        model: opts.model,
+        standingOrders: def.supports.standingOrders ? orders : undefined,
+        worktree: def.supports.nativeWorktree ? opts.worktree : false,
+        worktreeName: opts.worktreeName
+      })
+    ]
 
     // The clone must start from a pristine environment. Kamino itself may
     // have been launched from inside a Claude Code session or a
@@ -112,7 +113,7 @@ export class PtyManager extends EventEmitter {
     if (!env.TERM || env.TERM === 'dumb') env.TERM = 'xterm-256color'
     if (!env.COLORTERM) env.COLORTERM = 'truecolor'
 
-    const proc = pty.spawn(resolveClaudeExe(), args, {
+    const proc = pty.spawn(resolved.file, args, {
       name: 'xterm-256color',
       cwd: opts.cwd,
       cols: opts.cols ?? 120,
@@ -123,7 +124,7 @@ export class PtyManager extends EventEmitter {
     const ptyId = `pty-${this.nextId++}`
     const held: Held = {
       proc,
-      info: { ptyId, pid: proc.pid, cwd: opts.cwd },
+      info: { ptyId, pid: proc.pid, cwd: opts.cwd, cli: def.id },
       backlog: [],
       backlogBytes: 0
     }
@@ -172,6 +173,11 @@ export class PtyManager extends EventEmitter {
   ptyIdForPid(pid: number): string | null {
     for (const h of this.held.values()) if (h.info.pid === pid) return h.info.ptyId
     return null
+  }
+
+  /** which CLI a PTY runs, for callers that only hold the id */
+  cliOf(ptyId: string): string | null {
+    return this.held.get(ptyId)?.info.cli ?? null
   }
 
   disposeAll(): void {

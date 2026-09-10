@@ -11,6 +11,76 @@ export type InstanceState = 'busy' | 'needs-you' | 'idle' | 'dead'
  */
 export type PendingAskKind = 'question' | 'plan' | 'permission' | 'reply' | 'idle'
 
+/**
+ * Which coding-agent CLI a clone runs. The two built-in kinds come with
+ * session intelligence (transcript tailing, rot, activity, titles); a custom
+ * CLI is a terminal Kamino can host and command but not read.
+ */
+export type CliKind = 'claude' | 'codex' | 'custom'
+
+/** One entry in a CLI's permission/approval picker. `args` is what it adds
+ *  to the command line — empty means "the CLI's own default". */
+export interface PermissionOption {
+  value: string
+  label: string
+  args: string[]
+}
+
+export interface CliBrand {
+  /** the mark the renderer draws: Clawd, the OpenAI blossom, or a lettered badge */
+  mark: 'claude' | 'openai' | 'letter'
+  /** one or two characters for a lettered badge */
+  letter?: string
+  /** CSS colour for the badge/accent */
+  color: string
+}
+
+/**
+ * A CLI Kamino can commission clones on. Two ship built in (Claude Code,
+ * Codex); any number of custom ones can be added from the launch dialog and
+ * are stored in userData/clis.json.
+ */
+export interface CliDefinition {
+  id: string
+  kind: CliKind
+  label: string
+  /** what to run — a name looked up on PATH (where.exe), or an absolute path */
+  command: string
+  brand: CliBrand
+  /** shipped with Kamino: label/command editable, never deletable */
+  builtin: boolean
+  permissionModes: PermissionOption[]
+  supports: {
+    resume: boolean
+    /** the CLI makes its own worktree (claude --worktree); otherwise Kamino does */
+    nativeWorktree: boolean
+    /** standing orders can ride in the system prompt rather than a first message */
+    standingOrders: boolean
+    model: boolean
+  }
+  modelSuggestions?: string[]
+  /** keystrokes that answer an approval prompt in this CLI's terminal */
+  approveKeys: string
+  /** clipboard form of a resume command; {id} is substituted */
+  resumeTemplate?: string
+  /** custom only: arguments always passed; {cwd} is substituted */
+  extraArgs?: string[]
+  /** custom only: how the first prompt is delivered */
+  promptStyle?: 'positional' | 'flag' | 'none'
+  promptFlag?: string
+  /** custom only: arguments that resume a session; {id} is substituted */
+  resumeArgs?: string[]
+}
+
+/** Whether a CLI is actually on this machine, and where. */
+export interface CliStatus {
+  id: string
+  installed: boolean
+  path?: string
+  version?: string
+  error?: string
+}
+
 export interface PrLink {
   number: number
   url: string
@@ -147,6 +217,9 @@ export interface Instance {
   worktree?: string
   gitBranch: string
   name: string
+  /** which CLI runs this clone — the id of a CliDefinition */
+  cli: string
+  cliKind: CliKind
   kind: InstanceKind
   state: InstanceState
   now: InstanceNow
@@ -393,6 +466,8 @@ export interface RecentProject {
 
 export interface RecentSession {
   sessionId: string
+  /** which CLI wrote it — resume goes back through the same one */
+  cli: string
   cwd: string
   gitBranch: string
   title: string
@@ -403,9 +478,13 @@ export interface RecentSession {
 
 export interface LaunchRequest {
   cwd: string
+  /** CliDefinition id; omitted = Claude Code */
+  cli?: string
   resumeSessionId?: string
   initialPrompt?: string
   permissionMode?: string
+  /** model override, in the CLI's own naming */
+  model?: string
   /** standing orders to commit, push and raise a PR when work is done.
    *  Omitted = on; only an explicit false turns it off. */
   autoShip?: boolean
@@ -418,6 +497,8 @@ export interface PtyInfo {
   ptyId: string
   pid: number
   cwd: string
+  /** which CLI is running in it */
+  cli: string
 }
 
 /** wrap-up check: one repo the fleet is working in, and whether closing the

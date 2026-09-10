@@ -1,8 +1,12 @@
-import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, UpdateState, WrapupReport, ZoomState } from '../shared/types'
+import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, CliDefinition, CliStatus, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, UpdateState, WrapupReport, ZoomState } from '../shared/types'
 
 declare global {
   interface Window {
     fleet: {
+      clisList: () => Promise<{ clis: CliDefinition[]; status: Record<string, CliStatus> }>
+      clisSave: (def: Partial<CliDefinition>) => Promise<CliDefinition>
+      clisRemove: (id: string) => Promise<boolean>
+      clisDetect: (id: string) => Promise<CliStatus>
       getFleet: () => Promise<FleetSnapshot>
       onFleet: (cb: (snap: FleetSnapshot) => void) => () => void
       getPrStatus: () => Promise<PrStatusMap>

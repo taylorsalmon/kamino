@@ -1,6 +1,7 @@
 import type { Instance, PrStatusMap } from '../../../shared/types'
 import { agoShort, elapsed, KIND_WORD, prBadge, stateWord } from '../format'
 import { RotBar } from './RotBar'
+import { CliMark } from './CliMark'
 
 export function InstanceCard(props: {
   instance: Instance
@@ -20,6 +21,7 @@ export function InstanceCard(props: {
     <button
       className={`card${props.selected ? ' selected' : ''}`}
       data-state={inst.state}
+      data-cli={inst.cliKind}
       data-arbiter={inst.arbiter ? 'yes' : undefined}
       onClick={props.onSelect}
     >
@@ -36,7 +38,10 @@ export function InstanceCard(props: {
               ⚖ ARBITER
             </span>
           )}
-          <span className="card-name">{inst.name}</span>
+          <span className="card-name">
+            <CliMark kind={inst.cliKind} cli={inst.cli} />
+            {inst.name}
+          </span>
           <span className="state-word" data-state={inst.state} data-arbiter={inst.arbiter ? 'yes' : undefined}>
             {stateWord(inst.state, inst.now.askKind)}
           </span>
@@ -102,7 +107,7 @@ export function InstanceCard(props: {
             <span className="queue-chip">⧗ {inst.now.queued.length} queued</span>
           )}
           {inst.state !== 'dead' && (
-            <RotBar context={inst.context} now={now} sessionId={inst.sessionId} />
+            <RotBar context={inst.context} now={now} sessionId={inst.sessionId} mark={inst.cliKind} />
           )}
         </span>
       </span>

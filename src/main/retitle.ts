@@ -24,6 +24,7 @@
 import * as fs from 'node:fs'
 import { runClaude } from './claude-cli'
 import { describeAssistant, extractUserPrompt, parseRecord, transcriptPath } from './claude-data'
+import { codexRecentWork } from './codex-data'
 import type { InstanceStore } from './instance-store'
 import type { Instance } from '../shared/types'
 
@@ -53,7 +54,7 @@ const FAILURE_LIMIT = 3
  * session being named.
  */
 const TITLER_ROLE =
-  'You name Claude Code sessions for a dashboard. The user message carries the rules and the evidence. Follow the rules exactly and reply with the title alone.'
+  'You name coding-agent sessions for a dashboard. The user message carries the rules and the evidence. Follow the rules exactly and reply with the title alone.'
 
 /** where a session's conversation stood when its title was last settled */
 interface Titled {
@@ -78,7 +79,7 @@ export interface RetitleDeps {
   /** ask the model; the transcript digest is already built by then */
   ask?: (input: string) => Promise<string>
   /** read the session's recent work off disk */
-  read?: (cwd: string, sessionId: string) => WorkDigest
+  read?: (inst: Instance) => WorkDigest
   now?: () => number
 }
 
@@ -88,7 +89,7 @@ export class Retitler {
   private sweeping = false
   private failures = 0
   private readonly ask: (input: string) => Promise<string>
-  private readonly read: (cwd: string, sessionId: string) => WorkDigest
+  private readonly read: (inst: Instance) => WorkDigest
   private readonly now: () => number
 
   constructor(
@@ -98,7 +99,16 @@ export class Retitler {
     this.ask =
       deps.ask ??
       ((input) => runClaude(input, { model: 'haiku', timeoutMs: CALL_TIMEOUT_MS, systemPrompt: TITLER_ROLE }))
-    this.read = deps.read ?? recentWork
+    // each CLI writes its own transcript dialect; the question asked is the same
+    this.read =
+      deps.read ??
+      ((inst) => {
+        if (inst.cliKind === 'codex') {
+          const file = this.store.transcriptFile(inst.sessionId)
+          return file ? codexRecentWork(file, MAX_PROMPTS, MAX_ACTIONS) : { prompts: [], actions: [] }
+        }
+        return recentWork(inst.cwd, inst.sessionId)
+      })
     this.now = deps.now ?? Date.now
   }
 
@@ -168,7 +178,12 @@ export class Retitler {
       this.state.set(inst.sessionId, { atTurns: turns, at: this.now() })
     }
 
-    const work = this.read(inst.cwd, inst.sessionId)
+    // a custom CLI has no transcript Kamino can read — its title is its folder
+    if (inst.cliKind === 'custom') {
+      settled()
+      return
+    }
+    const work = this.read(inst)
     if (!work.prompts.length) {
       settled()
       return
@@ -239,7 +254,7 @@ function oneLine(s: string, max: number): string {
 
 export function buildPrompt(current: string, work: WorkDigest, activity: string): string {
   const lines = [
-    'You are naming one Claude Code session for a dashboard where several sessions sit side by side.',
+    'You are naming one coding-agent session for a dashboard where several sessions sit side by side.',
     '',
     'Rules:',
     '- Name what the session is working on NOW. The most recent request outranks the earlier ones.',

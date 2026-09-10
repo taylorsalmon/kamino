@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Instance, PrStatusMap, TranscriptTailMsg } from '../../../shared/types'
 import { agoShort, elapsed, prBadge, stateWord } from '../format'
+import { approveKeys, cliKindOf, cliLabel } from '../clis'
 import { TerminalView } from './TerminalView'
 import { DetailPanel } from './DetailPanel'
 import { RotBar } from './RotBar'
 import { TaskTrack } from './TaskTrack'
+import { CliMark } from './CliMark'
 import { canRaisePr, RaisePrButton } from './RaisePrButton'
 
 /**
@@ -17,6 +19,8 @@ export function GridPane(props: {
   paneId: string
   instance: Instance | null
   ptyId: string | null
+  /** which CLI the PTY runs — shown while the clone is still growing and has no instance yet */
+  cli?: string
   now: number
   /** position on the wall — slots 0-8 get a Ctrl+n jump badge */
   slot?: number
@@ -35,6 +39,8 @@ export function GridPane(props: {
 }): React.JSX.Element {
   const { instance: inst, ptyId, now } = props
   const state = inst?.state ?? 'busy'
+  const cliId = inst?.cli ?? props.cli
+  const cliKind = inst?.cliKind ?? cliKindOf(cliId)
   // an arbiter is Kamino's own clone, not one of yours — it gets a different
   // skin entirely so it is never mistaken for a pane you can hand work to
   const isArbiter = inst?.arbiter === true
@@ -124,6 +130,7 @@ export function GridPane(props: {
       ref={paneRef}
       className={`pane${dragOver ? ' drag-over' : ''}${resizing ? ' resizing' : ''}`}
       data-state={state}
+      data-cli={cliKind}
       data-arbiter={isArbiter ? 'yes' : undefined}
       style={{
         gridColumn: size.w > 1 ? `span ${size.w}` : undefined,
@@ -168,7 +175,10 @@ export function GridPane(props: {
             ⚖ ARBITER
           </span>
         )}
-        <span className="pane-name">{inst?.name ?? 'growing…'}</span>
+        <span className="pane-name">
+          <CliMark kind={cliKind} cli={cliId} />
+          {inst?.name ?? 'growing…'}
+        </span>
         <span className="state-word" data-state={state} data-arbiter={isArbiter ? 'yes' : undefined}>
           {inst ? stateWord(inst.state, inst.now.askKind) : 'CLONING'}
         </span>
@@ -263,7 +273,7 @@ export function GridPane(props: {
             </span>
           )}
           {inst.state !== 'dead' && (
-            <RotBar context={inst.context} now={now} sessionId={inst.sessionId} />
+            <RotBar context={inst.context} now={now} sessionId={inst.sessionId} mark={inst.cliKind} />
           )}
         </div>
       )}
@@ -276,13 +286,24 @@ export function GridPane(props: {
             <span className="who">❯ you</span> {inst.recent.lastPrompt || '—'}
           </span>
           <span className="pane-quote" title="Hover to peek at the last few exchanges">
-            <span className="who">✦ clone</span> {inst.recent.lastAssistantText || '—'}
+            <span className="who">
+              <CliMark kind={inst.cliKind} cli={inst.cli} /> clone
+            </span>{' '}
+            {inst.recent.lastAssistantText || '—'}
           </span>
           {peek && (
             <div className="pane-peek">
               {peek.map((m, i) => (
                 <div key={i} className="peek-msg" data-who={m.who}>
-                  <span className="who">{m.who === 'you' ? '❯ you' : '✦ clone'}</span>
+                  <span className="who">
+                    {m.who === 'you' ? (
+                      '❯ you'
+                    ) : (
+                      <>
+                        <CliMark kind={inst.cliKind} cli={inst.cli} /> clone
+                      </>
+                    )}
+                  </span>
                   <span className="peek-text">{m.text}</span>
                 </div>
               ))}
@@ -320,8 +341,12 @@ export function GridPane(props: {
                 {(inst.now.askKind === 'permission' || inst.now.askKind === 'plan') && (
                   <button
                     className="pane-ask-btn"
-                    title="Selects option 1 (yes) in the prompt"
-                    onClick={() => window.fleet.ptyInput(ptyId, '1')}
+                    title={
+                      inst.cliKind === 'claude'
+                        ? 'Selects option 1 (yes) in the prompt'
+                        : `Takes the highlighted Allow in ${cliLabel(inst.cli, inst.cliKind)}'s prompt`
+                    }
+                    onClick={() => window.fleet.ptyInput(ptyId, approveKeys(inst))}
                   >
                     ✓ Approve
                   </button>

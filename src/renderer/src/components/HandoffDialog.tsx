@@ -101,7 +101,7 @@ export function HandoffDialog(props: {
           {!progress && !compacted && (
             <>
               <div className="handoff-intro">
-                At ~100% Claude Code compacts on its own: it squashes this conversation into a
+                At ~100% the CLI compacts on its own: it squashes this conversation into a
                 summary you never see, at a moment you don&apos;t choose, and the details rot away.
                 Get ahead of it.
               </div>

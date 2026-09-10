@@ -6,6 +6,9 @@
  * appended lines only, never re-reading. Handles torn final lines by buffering
  * the partial tail until the next flush completes it.
  *
+ * The line parser is pluggable: Claude Code transcripts and Codex rollouts are
+ * both JSONL, and only the record shapes differ.
+ *
  * Reads are synchronous and on the main thread, so no single read may be
  * unbounded: a long session with big tool outputs runs to tens or hundreds of
  * MB, and at startup this happens once per live session. Anything beyond
@@ -19,18 +22,22 @@ import { parseRecord, type TranscriptRecord } from './claude-data'
 /** most bytes any one read will pull off disk */
 const MAX_CATCHUP = 3 * 1024 * 1024
 
-export class TranscriptTailer {
+export class TranscriptTailer<R = TranscriptRecord> {
   private offset = 0
   private partial = ''
   private watcher: fs.StatWatcher | null = null
   private reading = false
   private pendingRead = false
+  private readonly parse: (line: string) => R | null
 
   constructor(
     readonly filePath: string,
-    private readonly onRecord: (rec: TranscriptRecord) => void,
-    private readonly onFlush: () => void
-  ) {}
+    private readonly onRecord: (rec: R) => void,
+    private readonly onFlush: () => void,
+    parse?: (line: string) => R | null
+  ) {
+    this.parse = parse ?? (parseRecord as unknown as (line: string) => R | null)
+  }
 
   /** Read everything currently in the file, then start following. */
   start(): void {
@@ -95,7 +102,7 @@ export class TranscriptTailer {
         this.partial = lines.pop() ?? '' // last element is '' on a clean trailing \n
         let emitted = false
         for (const line of lines) {
-          const rec = parseRecord(line)
+          const rec = this.parse(line)
           if (rec) {
             this.onRecord(rec)
             emitted = true
