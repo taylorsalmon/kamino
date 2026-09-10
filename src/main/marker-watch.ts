@@ -11,6 +11,9 @@
  * Reading starts from a byte offset captured BEFORE the order goes in, so an
  * older marked block earlier in the same session can never be mistaken for this
  * one.
+ *
+ * The transcript dialect is a parameter: Claude Code's by default, Codex's when
+ * the clone is one (see codexAssistantTexts).
  */
 import * as fs from 'node:fs'
 import { describeAssistant, parseRecord } from './claude-data'
@@ -64,8 +67,23 @@ export interface Marked {
   complete: boolean
 }
 
+/** The model's own messages in a chunk of transcript, oldest first. */
+export type AssistantTexts = (chunk: string) => string[]
+
+/** Claude Code's dialect: assistant records, main thread only. */
+export function claudeAssistantTexts(chunk: string): string[] {
+  const out: string[] = []
+  for (const line of chunk.split('\n')) {
+    const rec = parseRecord(line)
+    if (!rec || rec.type !== 'assistant' || rec.isSidechain) continue
+    const text = describeAssistant(rec)?.text
+    if (text) out.push(text)
+  }
+  return out
+}
+
 /**
- * Pull a marked block out of the assistant records in `chunk`. The LAST
+ * Pull a marked block out of the assistant messages in `chunk`. The LAST
  * candidate wins, since a streamed reply rewrites the same text as it grows —
  * which also makes this a live progress read while the clone is still typing.
  *
@@ -77,15 +95,12 @@ export function findMarked(
   chunk: string,
   start: string,
   end: string,
-  opts?: { fallback?: boolean }
+  opts?: { fallback?: boolean },
+  texts: AssistantTexts = claudeAssistantTexts
 ): Marked | null {
   let marked: string | null = null
   let anyText: string | null = null
-  for (const line of chunk.split('\n')) {
-    const rec = parseRecord(line)
-    if (!rec || rec.type !== 'assistant' || rec.isSidechain) continue
-    const text = describeAssistant(rec)?.text
-    if (!text) continue
+  for (const text of texts(chunk)) {
     anyText = text
     if (text.includes(start)) marked = text
   }

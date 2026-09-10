@@ -1,7 +1,14 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, UpdateState, WrapupReport, ZoomState } from '../shared/types'
+import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, CliDefinition, CliStatus, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, UpdateState, WrapupReport, ZoomState } from '../shared/types'
 
 const api = {
+  // which CLIs a clone can run on, and whether each is installed here
+  clisList: (): Promise<{ clis: CliDefinition[]; status: Record<string, CliStatus> }> =>
+    ipcRenderer.invoke('clis:list'),
+  clisSave: (def: Partial<CliDefinition>): Promise<CliDefinition> => ipcRenderer.invoke('clis:save', def),
+  clisRemove: (id: string): Promise<boolean> => ipcRenderer.invoke('clis:remove', id),
+  clisDetect: (id: string): Promise<CliStatus> => ipcRenderer.invoke('clis:detect', id),
+
   // fleet status
   getFleet: (): Promise<FleetSnapshot> => ipcRenderer.invoke('fleet:get'),
   onFleet: (cb: (snap: FleetSnapshot) => void): (() => void) => {

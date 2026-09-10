@@ -5,13 +5,15 @@
  * cheap enough to call on every hover.
  */
 import * as fs from 'node:fs'
-import { describeAssistant, extractUserPrompt, parseRecord, transcriptPath } from './claude-data'
-import type { TranscriptTailMsg } from '../shared/types'
+import { describeAssistant, extractUserPrompt, parseRecord } from './claude-data'
+import { codexPeek } from './codex-data'
+import type { CliKind, TranscriptTailMsg } from '../shared/types'
 
 const TAIL_BYTES = 256 * 1024
 
-export function transcriptTail(cwd: string, sessionId: string, limit = 6): TranscriptTailMsg[] {
-  const file = transcriptPath(cwd, sessionId)
+export function transcriptTail(file: string, cli: CliKind, limit = 6): TranscriptTailMsg[] {
+  if (cli === 'codex') return codexPeek(file, limit)
+  if (cli !== 'claude') return []
   let chunk: string
   try {
     const size = fs.statSync(file).size

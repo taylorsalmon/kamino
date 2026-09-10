@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { Instance, PrStatusMap } from '../../../shared/types'
 import { elapsed, fmtTokens, prBadge, stateWord } from '../format'
+import { cliLabel, resumeCommand } from '../clis'
 import { RotBar } from './RotBar'
+import { CliMark } from './CliMark'
 import { canRaisePr, RaisePrButton } from './RaisePrButton'
 
 export function DetailPanel(props: {
@@ -39,7 +41,10 @@ export function DetailPanel(props: {
   return (
     <div>
       <div className="detail-head">
-        <span className="detail-name">{inst.name}</span>
+        <span className="detail-name">
+          <CliMark kind={inst.cliKind} cli={inst.cli} />
+          {inst.name}
+        </span>
         <span className="state-pill" data-state={inst.state}>
           {stateWord(inst.state, inst.now.askKind)}
         </span>
@@ -210,7 +215,7 @@ export function DetailPanel(props: {
           <dd>
             {inst.context ? (
               <span className="detail-rot">
-                <RotBar context={inst.context} now={now} sessionId={inst.sessionId} />
+                <RotBar context={inst.context} now={now} sessionId={inst.sessionId} mark={inst.cliKind} />
                 <span>
                   {fmtTokens(inst.context.tokens)} / {fmtTokens(inst.context.window)}
                   {inst.context.compactions > 0 && ` · ${inst.context.compactions} compaction${inst.context.compactions > 1 ? 's' : ''}`}
@@ -225,7 +230,10 @@ export function DetailPanel(props: {
           <dt>permissions</dt>
           <dd>{inst.permissionMode ?? '—'}</dd>
           <dt>cli</dt>
-          <dd>{inst.version ?? '—'}</dd>
+          <dd>
+            {cliLabel(inst.cli, inst.cliKind)}
+            {inst.version ? ` ${inst.version}` : ''}
+          </dd>
         </dl>
       </div>
 
@@ -238,12 +246,15 @@ export function DetailPanel(props: {
           <button className="btn" onClick={() => window.fleet.openVsCode(inst.cwd)}>
             Open in VS Code
           </button>
-          <button
-            className="btn"
-            onClick={() => navigator.clipboard.writeText(`claude --resume ${inst.sessionId}`)}
-          >
-            Copy resume command
-          </button>
+          {resumeCommand(inst) && (
+            <button
+              className="btn"
+              title={resumeCommand(inst)}
+              onClick={() => navigator.clipboard.writeText(resumeCommand(inst))}
+            >
+              Copy resume command
+            </button>
+          )}
           {inst.gitBranch && (
             <button className="btn" onClick={() => navigator.clipboard.writeText(inst.gitBranch)}>
               Copy branch

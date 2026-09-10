@@ -15,16 +15,19 @@ import { transcriptTail } from './transcript-peek'
 import { checkRepo } from './wrapup'
 import { HandoffRunner } from './handoff'
 import { Deconflictor } from './deconflict'
-import { ensureWorktreeIgnored } from './worktree'
+import { createWorktree, ensureWorktreeIgnored } from './worktree'
 import { Hyperdrive, type PrOwner } from './hyperdrive'
 import { openExternalOnce, setOpenLogPath } from './open-external'
 import { Arbiter } from './arbiter'
 import { Updater } from './updater'
 import { Retitler } from './retitle'
 import { Zoom } from './zoom'
+import { CliRegistry } from './cli-registry'
+import { CodexTracker } from './codex-tracker'
 import type {
   ArbiterCase,
   ArbiterSettings,
+  CliDefinition,
   DeconflictEvent,
   DeconflictMode,
   FleetSnapshot,
@@ -37,7 +40,12 @@ import type {
 } from '../shared/types'
 
 const store = new InstanceStore(path.join(app.getPath('userData'), 'model-windows.json'))
-const ptys = new PtyManager()
+// which CLIs clones can run on — Claude Code and Codex built in, custom ones saved
+const clis = new CliRegistry(path.join(app.getPath('userData'), 'clis.json'))
+const ptys = new PtyManager(clis)
+// Codex has no session registry, so its embedded clones are bound to their
+// rollouts by the tracker instead of by pid
+const codex = new CodexTracker(store, ptys)
 const hookServer = new HookServer()
 const prPoller = new PrStatusPoller()
 const handoff = new HandoffRunner(ptys, store)
@@ -232,6 +240,25 @@ app.whenReady().then(() => {
   hookServer.start()
   hookServer.on('hook', onHook)
 
+  // ── Codex clones: same toasts as the hook path gives Claude clones ────
+  codex.start()
+  codex.on('ask', (sessionId: string, text: string) => {
+    const inst = store.get(sessionId)
+    if (inst && shouldToast(sessionId)) notify(`${inst.name} awaits orders`, text, sessionId)
+  })
+  codex.on('stop', (sessionId: string, turnStartedAt?: number) => {
+    const inst = store.get(sessionId)
+    if (inst && turnStartedAt && Date.now() - turnStartedAt > LONG_TURN_MS && shouldToast(sessionId)) {
+      notify(`${inst.name} — mission complete`, inst.now.title || 'Another happy landing.', sessionId)
+    }
+  })
+
+  // ── CLIs: which ones exist, which are installed ──────────────────────
+  ipcMain.handle('clis:list', async () => ({ clis: clis.list(), status: await clis.statuses() }))
+  ipcMain.handle('clis:save', (_e, def: Partial<CliDefinition>) => clis.save(def ?? {}))
+  ipcMain.handle('clis:remove', (_e, id: string) => (typeof id === 'string' ? clis.remove(id) : false))
+  ipcMain.handle('clis:detect', (_e, id: string) => clis.status(String(id)))
+
   // ── zoom: the whole board scales like a browser page ─────────────────
   zoom.on('change', (st: ZoomState) => broadcast('zoom:state', st))
   ipcMain.handle('zoom:get', () => zoom.snapshot())
@@ -341,18 +368,38 @@ app.whenReady().then(() => {
 
   // ── ptys ─────────────────────────────────────────────────────────────
   ipcMain.handle('pty:spawn', async (_e, req: LaunchRequest) => {
-    // before the tree exists, so the parent repo never reports it as untracked
-    // and no clone can stage a second checkout into its own commit
-    if (req.worktree) await ensureWorktreeIgnored(req.cwd)
-    return ptys.spawn({
-      cwd: req.cwd,
+    const def = ptys.definition(req.cli)
+    let cwd = req.cwd
+    if (req.worktree) {
+      // before the tree exists, so the parent repo never reports it as untracked
+      // and no clone can stage a second checkout into its own commit
+      await ensureWorktreeIgnored(req.cwd)
+      // Claude makes its own tree (--worktree); everyone else gets Kamino's
+      if (!def.supports.nativeWorktree) cwd = await createWorktree(req.cwd, req.worktreeName)
+    }
+    const info = ptys.spawn({
+      cwd,
+      cli: def.id,
       resumeSessionId: req.resumeSessionId,
       initialPrompt: req.initialPrompt,
       permissionMode: req.permissionMode,
+      model: req.model,
       autoShip: req.autoShip,
       worktree: req.worktree,
       worktreeName: req.worktreeName
     })
+    if (def.kind === 'codex') {
+      codex.expect({
+        ptyId: info.ptyId,
+        pid: info.pid,
+        cwd,
+        startedAt: Date.now(),
+        resumeSessionId: req.resumeSessionId,
+        permissionMode: req.permissionMode,
+        model: req.model
+      })
+    }
+    return info
   })
   ipcMain.on('pty:input', (_e, ptyId: string, data: string) => ptys.write(ptyId, data))
   ipcMain.on('pty:resize', (_e, ptyId: string, cols: number, rows: number) =>
@@ -391,7 +438,11 @@ app.whenReady().then(() => {
   ipcMain.handle('recap:get', async (_e, sessionId: string) => {
     const inst = store.get(sessionId)
     if (!inst) throw new Error('unknown session')
-    return recap(sessionId, inst.cwd)
+    const file = store.transcriptFile(sessionId)
+    if (!file || inst.cliKind === 'custom') {
+      throw new Error('No transcript to report from — Kamino can host this CLI but cannot read it.')
+    }
+    return recap(sessionId, file, inst.cliKind)
   })
 
   // ── reincarnation: hand a rotting clone's state to a fresh one ────────
@@ -428,8 +479,9 @@ app.whenReady().then(() => {
   // ── hover peek: last few transcript exchanges ────────────────────────
   ipcMain.handle('transcript:tail', (_e, sessionId: string) => {
     const inst = store.get(sessionId)
-    if (!inst) return []
-    return transcriptTail(inst.cwd, inst.sessionId)
+    const file = store.transcriptFile(sessionId)
+    if (!inst || !file) return []
+    return transcriptTail(file, inst.cliKind)
   })
 
   // ── hooks ────────────────────────────────────────────────────────────
@@ -487,6 +539,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   ptys.disposeAll()
+  codex.stop()
   store.stop()
   retitler.stop()
   prPoller.stop()

@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react'
-import type { RecentProject, RecentSession } from '../../../shared/types'
+import { useEffect, useMemo, useState } from 'react'
+import type { CliDefinition, RecentProject, RecentSession } from '../../../shared/types'
 import { agoShort } from '../format'
+import { cliKindOf, useClis } from '../clis'
+import { CliMark } from './CliMark'
+import { CliManagerDialog } from './CliManagerDialog'
 
 type Tab = 'new' | 'resume'
 
@@ -14,6 +17,11 @@ export function LaunchDialog(props: {
   const [cwd, setCwd] = useState('')
   const [prompt, setPrompt] = useState('')
   const [permissionMode, setPermissionMode] = useState('default')
+  const [model, setModel] = useState('')
+  // which CLI grows this clone — remembered, since a fleet usually runs on one
+  const { clis, status, loaded, reload } = useClis()
+  const [cliId, setCliId] = useState(() => localStorage.getItem('fleet:cli') || 'claude')
+  const [showManage, setShowManage] = useState(false)
   // standing orders live in the clone's system prompt, so the choice is made
   // once at commission time and can't be forgotten later in the session
   const [autoShip, setAutoShip] = useState(
@@ -27,9 +35,25 @@ export function LaunchDialog(props: {
   const [error, setError] = useState('')
   const now = Date.now()
 
+  const cli: CliDefinition | undefined = useMemo(
+    () => clis.find((c) => c.id === cliId) ?? clis.find((c) => c.id === 'claude'),
+    [clis, cliId]
+  )
+  const cliStatus = cli ? status[cli.id] : undefined
+
   useEffect(() => {
     localStorage.setItem('fleet:auto-ship', autoShip ? 'on' : 'off')
   }, [autoShip])
+  useEffect(() => {
+    localStorage.setItem('fleet:cli', cliId)
+    // a mode from the previous CLI's list means nothing to this one
+    setPermissionMode('default')
+    setModel('')
+  }, [cliId])
+  // a saved id whose definition was removed falls back to Claude
+  useEffect(() => {
+    if (loaded && !clis.some((c) => c.id === cliId)) setCliId('claude')
+  }, [loaded, clis, cliId])
 
   useEffect(() => {
     window.fleet.recentProjects().then((p) => {
@@ -40,15 +64,17 @@ export function LaunchDialog(props: {
   }, [])
 
   async function launchNew(): Promise<void> {
-    if (!cwd || busy) return
+    if (!cwd || busy || !cli) return
     setBusy(true)
     setError('')
     try {
       const info = await window.fleet.spawn({
         cwd,
+        cli: cli.id,
         initialPrompt: prompt.trim() || undefined,
         permissionMode: permissionMode === 'default' ? undefined : permissionMode,
-        autoShip,
+        model: cli.supports.model && model.trim() ? model.trim() : undefined,
+        autoShip: cli.supports.standingOrders ? autoShip : false,
         worktree,
         worktreeName: worktree ? worktreeName.trim() || undefined : undefined
       })
@@ -65,10 +91,12 @@ export function LaunchDialog(props: {
     setBusy(true)
     setError('')
     try {
+      const def = clis.find((c) => c.id === s.cli)
       const info = await window.fleet.spawn({
         cwd: s.cwd,
+        cli: s.cli,
         resumeSessionId: s.sessionId,
-        autoShip
+        autoShip: def ? def.supports.standingOrders && autoShip : autoShip
       })
       props.onLaunched(info.ptyId, info.pid)
     } catch (e) {
@@ -77,6 +105,15 @@ export function LaunchDialog(props: {
       setBusy(false)
     }
   }
+
+  const worktreeNote = cli?.supports.nativeWorktree
+    ? "A folder has one checked-out branch, so clones sharing one commit to the same branch and land in one PR no matter how carefully they work. Give this clone its own tree and it gets its own branch, its own PR, and can't collide with a sibling at all. Needs a git repo."
+    : `${cli?.label ?? 'This CLI'} has no worktree flag of its own, so Kamino makes the tree: <repo>/.kamino/worktrees/<name> on branch worktree-<name>, and the clone starts inside it. Needs a git repo.`
+
+  const ordersNote =
+    cli?.kind === 'codex'
+      ? 'Finishing includes shipping — commit, push, and open (or update) a PR without being asked, with anything unfinished logged as follow-ups. Rides in as developer instructions (-c developer_instructions), so it holds for the whole session. Skipped on main/master and in repos with no remote.'
+      : 'Finishing includes shipping — commit, push, and open (or update) a PR without being asked, with anything unfinished logged as follow-ups. Skipped on main/master and in repos with no remote.'
 
   return (
     <div className="modal-backdrop" onClick={props.onClose}>
@@ -98,6 +135,52 @@ export function LaunchDialog(props: {
 
         {tab === 'new' ? (
           <div className="modal-body">
+            <div className="field">
+              <label className="section-label">CLI</label>
+              <div className="cli-picker" role="radiogroup" aria-label="Which CLI runs this clone">
+                {clis.map((c) => {
+                  const st = status[c.id]
+                  const missing = loaded && st && !st.installed
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={c.id === cliId}
+                      className={`cli-opt${c.id === cliId ? ' active' : ''}`}
+                      data-missing={missing ? 'yes' : undefined}
+                      title={
+                        !st
+                          ? c.label
+                          : st.installed
+                            ? `${c.label}${st.version ? ` ${st.version}` : ''}\n${st.path ?? ''}`
+                            : `${c.label} — ${st.error ?? 'not found'}`
+                      }
+                      onClick={() => setCliId(c.id)}
+                    >
+                      <CliMark kind={c.kind} cli={c.id} title={c.label} />
+                      <span>{c.label}</span>
+                      <span className="cli-status" aria-hidden />
+                    </button>
+                  )
+                })}
+                <button type="button" className="btn cli-manage" onClick={() => setShowManage(true)}>
+                  ⚙ Manage
+                </button>
+              </div>
+              {cliStatus && !cliStatus.installed && (
+                <div className="cli-missing-note">
+                  {cli?.label} isn&apos;t installed here ({cliStatus.error ?? 'not found'}). Fix the command
+                  under Manage, or install it — commissioning will fail until then.
+                </div>
+              )}
+              {cli?.kind === 'custom' && (
+                <div className="cli-missing-note muted">
+                  Custom CLI — Kamino hosts and commands its terminal, but can&apos;t read a transcript, so
+                  the card shows no activity, title or rot.
+                </div>
+              )}
+            </div>
             <div className="field">
               <label className="section-label">Folder</label>
               <div className="folder-row">
@@ -129,15 +212,35 @@ export function LaunchDialog(props: {
                 onChange={(e) => setPrompt(e.target.value)}
               />
             </div>
-            <div className="field">
-              <label className="section-label">Permissions</label>
-              <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)}>
-                <option value="default">default — ask as needed</option>
-                <option value="plan">plan — read-only until approved</option>
-                <option value="acceptEdits">acceptEdits — edits allowed, asks for commands</option>
-                <option value="bypassPermissions">auto — never asks, full autonomy</option>
-              </select>
-            </div>
+            {cli && cli.permissionModes.length > 0 && (
+              <div className="field">
+                <label className="section-label">Permissions</label>
+                <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)}>
+                  {cli.permissionModes.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {cli?.supports.model && (
+              <div className="field">
+                <label className="section-label">Model (optional)</label>
+                <input
+                  type="text"
+                  list="fleet-model-suggestions"
+                  placeholder={`${cli.label}'s default`}
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                />
+                <datalist id="fleet-model-suggestions">
+                  {(cli.modelSuggestions ?? []).map((m) => (
+                    <option key={m} value={m} />
+                  ))}
+                </datalist>
+              </div>
+            )}
             <label className="field auto-ship" title="git worktree add — its own directory and branch off this repo">
               <span className="auto-ship-top">
                 <input
@@ -147,12 +250,7 @@ export function LaunchDialog(props: {
                 />
                 <span className="section-label">Own worktree — its own branch and PR</span>
               </span>
-              <span className="auto-ship-note">
-                A folder has one checked-out branch, so clones sharing one commit to the same branch
-                and land in one PR no matter how carefully they work. Give this clone its own tree
-                and it gets its own branch, its own PR, and can&apos;t collide with a sibling at all.
-                Needs a git repo.
-              </span>
+              <span className="auto-ship-note">{worktreeNote}</span>
               {worktree && (
                 <input
                   className="worktree-name"
@@ -164,28 +262,26 @@ export function LaunchDialog(props: {
                 />
               )}
             </label>
-            <label className="field auto-ship" title="Appended to the clone's system prompt, so it holds for the whole session">
-              <span className="auto-ship-top">
-                <input
-                  type="checkbox"
-                  checked={autoShip}
-                  onChange={(e) => setAutoShip(e.target.checked)}
-                />
-                <span className="section-label">Standing orders: ship its own work</span>
-              </span>
-              <span className="auto-ship-note">
-                Finishing includes shipping — commit, push, and open (or update) a PR without being
-                asked, with anything unfinished logged as follow-ups. Skipped on main/master and in
-                repos with no remote.
-              </span>
-            </label>
+            {cli?.supports.standingOrders && (
+              <label className="field auto-ship" title="Appended to the clone's system prompt, so it holds for the whole session">
+                <span className="auto-ship-top">
+                  <input
+                    type="checkbox"
+                    checked={autoShip}
+                    onChange={(e) => setAutoShip(e.target.checked)}
+                  />
+                  <span className="section-label">Standing orders: ship its own work</span>
+                </span>
+                <span className="auto-ship-note">{ordersNote}</span>
+              </label>
+            )}
             <div className="modal-actions">
               {error ? (
                 <span className="recap-err">{error}</span>
               ) : (
                 <span className="jedi-quote">“This is where the fun begins.”</span>
               )}
-              <button className="btn primary" onClick={launchNew} disabled={!cwd || busy}>
+              <button className="btn primary" onClick={launchNew} disabled={!cwd || busy || !cli}>
                 {busy ? 'Growing…' : 'Begin cloning'}
               </button>
             </div>
@@ -197,9 +293,13 @@ export function LaunchDialog(props: {
                 No sessions in the archive. These aren&apos;t the droids you&apos;re looking for.
               </div>
             )}
+            {error && <div className="recap-err">{error}</div>}
             {sessions.map((s) => (
               <button key={s.sessionId} className="session-row" onClick={() => resume(s)}>
-                <span className="session-title">{s.title || s.lastPrompt || s.sessionId}</span>
+                <span className="session-title">
+                  <CliMark kind={cliKindOf(s.cli)} cli={s.cli} />
+                  {s.title || s.lastPrompt || s.sessionId}
+                </span>
                 <span className="session-meta">
                   {s.cwd.split(/[\\/]/).pop()}
                   {s.gitBranch ? ` · ${s.gitBranch}` : ''}
@@ -212,6 +312,14 @@ export function LaunchDialog(props: {
           </div>
         )}
       </div>
+      {showManage && (
+        <CliManagerDialog
+          onClose={() => {
+            setShowManage(false)
+            void reload()
+          }}
+        />
+      )}
     </div>
   )
 }

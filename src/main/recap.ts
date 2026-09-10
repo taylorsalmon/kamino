@@ -3,10 +3,16 @@
  * compact digest, then asks Haiku (via `claude -p`, the user's existing auth)
  * for a three-part brief. Cached by transcript size so unchanged sessions
  * never re-summarize.
+ *
+ * The digest reader depends on which CLI wrote the transcript; the question
+ * asked of the model does not, so a Codex clone gets the same brief through the
+ * same route.
  */
 import * as fs from 'node:fs'
 import { runClaude } from './claude-cli'
-import { parseRecord, describeAssistant, extractUserPrompt, transcriptPath } from './claude-data'
+import { parseRecord, describeAssistant, extractUserPrompt } from './claude-data'
+import { codexDigestLines } from './codex-data'
+import type { CliKind } from '../shared/types'
 
 export interface RecapResult {
   text: string
@@ -24,7 +30,7 @@ const cache = new Map<string, CacheEntry>()
 const TAIL_BYTES = 200_000
 const MAX_DIGEST_LINES = 80
 
-function digest(file: string): string {
+function claudeDigest(file: string): string[] {
   const size = fs.statSync(file).size
   const fd = fs.openSync(file, 'r')
   let lines: string[]
@@ -67,10 +73,10 @@ function digest(file: string): string {
         break
     }
   }
-  return out.slice(-MAX_DIGEST_LINES).join('\n')
+  return out.slice(-MAX_DIGEST_LINES)
 }
 
-const PROMPT = `You are summarizing another Claude Code session's transcript digest for its owner, who has been away and wants to catch up fast.
+const PROMPT = `You are summarizing a coding-agent session's transcript digest for its owner, who has been away and wants to catch up fast. The agent's own lines are marked CLAUDE or CODEX depending on which CLI it is.
 
 Reply with EXACTLY this format, plain text, no preamble:
 NOW: <one line — what the session is doing or waiting on right now>
@@ -80,15 +86,15 @@ NEEDS: <one line — what it needs from the owner, or "nothing">
 Digest (oldest to newest):
 `
 
-export async function recap(sessionId: string, cwd: string): Promise<RecapResult> {
-  const file = transcriptPath(cwd, sessionId)
+export async function recap(sessionId: string, file: string, cli: CliKind): Promise<RecapResult> {
   const size = fs.statSync(file).size
   const hit = cache.get(sessionId)
   if (hit && hit.atSize === size) {
     return { text: hit.text, generatedAt: hit.generatedAt, fromCache: true }
   }
 
-  const input = PROMPT + digest(file)
+  const lines = cli === 'codex' ? codexDigestLines(file, MAX_DIGEST_LINES) : claudeDigest(file)
+  const input = PROMPT + lines.join('\n')
   const text = await runClaude(input)
   cache.set(sessionId, { atSize: size, text, generatedAt: Date.now() })
   return { text, generatedAt: Date.now(), fromCache: false }

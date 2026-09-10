@@ -55,6 +55,11 @@ function ratchetWindow(current: number, tokens: number): number {
 
 interface Tracked {
   instance: Instance
+  /** 'claude' entries are found and killed by the ~/.claude registry sweep;
+   *  'foreign' ones (Codex) are owned by their adapter, which reports death */
+  source: 'claude' | 'foreign'
+  /** the transcript/rollout on disk — recap, peek and handoff read it */
+  file: string | null
   tailer: TranscriptTailer | null
   /** true once the initial full-file read has completed */
   caughtUp: boolean
@@ -292,6 +297,64 @@ export class InstanceStore extends EventEmitter {
     return this.tracked.get(sessionId)?.instance ?? null
   }
 
+  /** Where this session's transcript (Claude) or rollout (Codex) lives. */
+  transcriptFile(sessionId: string): string | null {
+    return this.tracked.get(sessionId)?.file ?? null
+  }
+
+  // ── adapters for CLIs without a registry (Codex) ─────────────────────────
+
+  /** Put a clone another adapter discovered on the board. Its liveness is that
+   *  adapter's business: the registry sweep leaves foreign entries alone. */
+  adopt(instance: Instance, file: string | null): void {
+    const prev = this.tracked.get(instance.sessionId)
+    if (prev) prev.tailer?.stop()
+    this.tracked.set(instance.sessionId, {
+      instance,
+      source: 'foreign',
+      file,
+      tailer: null,
+      caughtUp: true,
+      registry: null,
+      lastToolUse: null
+    })
+    this.queueBroadcast()
+  }
+
+  /** Apply a change to a foreign clone and broadcast it. */
+  mutate(sessionId: string, fn: (inst: Instance) => void): void {
+    const t = this.tracked.get(sessionId)
+    if (!t || t.instance.state === 'dead') return
+    fn(t.instance)
+    this.queueBroadcast()
+  }
+
+  /** The adapter saw the process end. */
+  markDead(sessionId: string): void {
+    const t = this.tracked.get(sessionId)
+    if (!t || t.instance.state === 'dead') return
+    this.retire(sessionId, t, Date.now())
+    this.queueBroadcast()
+  }
+
+  /** Feed airspace control from an adapter, in Claude's tool vocabulary. */
+  noteToolUse(inst: Instance, name: string, input?: Record<string, unknown>): void {
+    this.emit('tool-use', inst, name, input)
+  }
+
+  private retire(sessionId: string, t: Tracked, now: number): void {
+    t.instance.state = 'dead'
+    t.instance.kind = 'dead'
+    t.instance.now.activity = t.instance.now.title ? `Ended — ${t.instance.now.title}` : 'Session ended'
+    t.instance.now.pendingAsk = undefined
+    t.instance.now.askKind = undefined
+    t.instance.now.pendingOptions = undefined
+    t.diedAt = now
+    t.tailer?.stop()
+    t.tailer = null
+    this.emit('died', sessionId)
+  }
+
   /** Record a PR Kamino raised on the clone's behalf — its transcript will
    *  never mention it, so without this the chip and the status poller only
    *  learn about it after a restart finds it on GitHub. */
@@ -351,17 +414,13 @@ export class InstanceStore extends EventEmitter {
     }
 
     // anything we tracked that no longer has a live registry entry → dead
+    // (foreign clones have no registry entry to lose — their adapter says)
     const now = Date.now()
     for (const [sessionId, t] of this.tracked) {
       if (seen.has(sessionId)) continue
       if (t.instance.state !== 'dead') {
-        t.instance.state = 'dead'
-        t.instance.kind = 'dead'
-        t.instance.now.activity = t.instance.now.title ? `Ended — ${t.instance.now.title}` : 'Session ended'
-        t.diedAt = now
-        t.tailer?.stop()
-        t.tailer = null
-        this.emit('died', sessionId)
+        if (t.source === 'foreign') continue
+        this.retire(sessionId, t, now)
       } else if (t.diedAt && now - t.diedAt > DEAD_RETENTION_MS) {
         this.tracked.delete(sessionId)
       }
@@ -379,6 +438,8 @@ export class InstanceStore extends EventEmitter {
       worktree,
       gitBranch: '',
       name: entry.name ?? repo,
+      cli: 'claude',
+      cliKind: 'claude',
       kind: this.rosterSessionIds.has(entry.sessionId) ? 'background' : 'external',
       state: 'idle',
       now: { title: '', activity: 'Starting up…', queued: [] },
@@ -388,8 +449,16 @@ export class InstanceStore extends EventEmitter {
       version: entry.version,
       tasks: readTaskList(entry.sessionId)
     }
-    const t: Tracked = { instance, tailer: null, caughtUp: false, registry: entry, lastToolUse: null }
     const file = transcriptPath(entry.cwd, entry.sessionId)
+    const t: Tracked = {
+      instance,
+      source: 'claude',
+      file,
+      tailer: null,
+      caughtUp: false,
+      registry: entry,
+      lastToolUse: null
+    }
     t.tailer = new TranscriptTailer(
       file,
       (rec) => this.applyRecord(t, rec),

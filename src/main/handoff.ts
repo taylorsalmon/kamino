@@ -16,11 +16,11 @@
  * into a terminal it didn't spawn.
  */
 import { EventEmitter } from 'node:events'
-import { transcriptPath } from './claude-data'
-import { fileSize, findMarked, readSince, sleep, type Marked } from './marker-watch'
+import { codexAssistantTexts } from './codex-data'
+import { claudeAssistantTexts, fileSize, findMarked, readSince, sleep, type Marked } from './marker-watch'
 import type { InstanceStore } from './instance-store'
 import type { PtyManager } from './pty-manager'
-import type { HandoffProgress } from '../shared/types'
+import type { CliKind, HandoffProgress } from '../shared/types'
 
 const START = '===KAMINO-HANDOFF-START==='
 const END = '===KAMINO-HANDOFF-END==='
@@ -49,7 +49,7 @@ const HANDOFF_ORDER =
 
 function successorOrders(brief: string, repo: string): string {
   return (
-    `You are taking over an in-progress task in ${repo} from a previous Claude Code session whose context ` +
+    `You are taking over an in-progress task in ${repo} from a previous coding-agent session whose context ` +
     'window filled up. Below is the handoff brief it wrote for you. Read the files it names to re-ground ' +
     'yourself in the current state before you change anything, then carry on from its NEXT section. Treat ' +
     'the brief as what happened, but verify the state on disk — the code is the truth, the brief is a ' +
@@ -59,8 +59,8 @@ function successorOrders(brief: string, repo: string): string {
 }
 
 /** the unmarked fallback is kept as the TIMEOUT answer, never as a completion */
-function findBrief(chunk: string): Marked | null {
-  return findMarked(chunk, START, END, { fallback: true })
+function findBrief(chunk: string, cli: CliKind): Marked | null {
+  return findMarked(chunk, START, END, { fallback: true }, cli === 'codex' ? codexAssistantTexts : claudeAssistantTexts)
 }
 
 interface Run {
@@ -119,19 +119,25 @@ export class HandoffRunner extends EventEmitter {
 
       // watch only what arrives after the order, so an earlier brief in this
       // session's history can't be mistaken for this one
-      const file = transcriptPath(inst.cwd, sessionId)
+      const file = this.store.transcriptFile(sessionId)
+      if (!file) throw new Error("This clone's transcript hasn't been found yet — try again in a moment.")
       const offset = fileSize(file)
       this.ptys.write(oldPtyId, HANDOFF_ORDER + '\r')
       this.emitProgress({ sessionId, stage: 'briefing' })
 
-      const found = await this.awaitBrief(sessionId, file, offset, run)
+      const found = await this.awaitBrief(sessionId, file, offset, inst.cliKind, run)
       if (run.cancelled) return
       this.emitProgress({ sessionId, stage: 'brief', brief: found.text, partial: !found.complete })
 
+      // the successor runs the same CLI — a Codex clone hands off to a Codex clone.
+      // Codex reports its permission mode as "policy · sandbox" words that are
+      // not a launch option, so only Claude's mode carries over.
       const successor = this.ptys.spawn({
         cwd: inst.cwd,
-        permissionMode: inst.permissionMode
+        cli: inst.cli,
+        permissionMode: inst.cliKind === 'claude' ? inst.permissionMode : undefined
       })
+      this.emit('successor', successor, inst)
       this.emitProgress({
         sessionId,
         stage: 'commissioning',
@@ -172,6 +178,7 @@ export class HandoffRunner extends EventEmitter {
     sessionId: string,
     file: string,
     offset: number,
+    cli: CliKind,
     run: Run
   ): Promise<Marked> {
     const deadline = Date.now() + BRIEF_TIMEOUT_MS
@@ -179,7 +186,7 @@ export class HandoffRunner extends EventEmitter {
     while (Date.now() < deadline) {
       await sleep(POLL_MS)
       if (run.cancelled) throw new Error('cancelled')
-      const found = findBrief(readSince(file, offset))
+      const found = findBrief(readSince(file, offset), cli)
       if (found) {
         if (found.complete) return found
         if (found.text !== last?.text) {

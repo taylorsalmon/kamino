@@ -3080,3 +3080,344 @@ body.pane-resizing .terminal-view {
   color: var(--faint);
   white-space: nowrap;
 }
+
+/* ── CLI brand marks ─────────────────────────────────────────────────────
+   One glyph beside every name says which CLI a pane runs: Claude's own
+   four-point star in clay, the OpenAI blossom in ink, or a lettered badge in
+   the colour a custom CLI was given. State stays in the lamps; the mark only
+   ever says "who". */
+.cli-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  vertical-align: -0.12em;
+  line-height: 1;
+}
+.cli-mark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.cli-mark[data-kind='claude'] {
+  color: var(--clay);
+}
+.cli-mark[data-kind='codex'] {
+  color: var(--text);
+}
+.cli-mark .cli-letter {
+  font-family: var(--mono);
+  font-size: 0.62em;
+  font-weight: 700;
+  line-height: 1;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 1px 2px;
+}
+.pane-name .cli-mark,
+.card-name .cli-mark,
+.workspace-name .cli-mark,
+.detail-name .cli-mark {
+  margin-right: 6px;
+  font-size: 11px;
+}
+.who .cli-mark {
+  font-size: 10px;
+  margin-right: 1px;
+}
+.session-title .cli-mark {
+  margin-right: 7px;
+  font-size: 11px;
+}
+
+/* the blossom as rot meter — the OpenAI mark stands where Clawd stands for a
+   Codex clone. Its six petals are the pixels: they fall away a wedge at a
+   time (an SVG luminance mask, so what shows through is the real
+   background), the whole mark takes the clay-to-grave ramp, and at the end it
+   flips over like the crab does. */
+.clawd.oai {
+  font-size: 15px; /* the mark scales off this — a shade under Clawd's height */
+  width: 1em;
+  height: 1em;
+  line-height: 0;
+}
+.detail-rot .clawd.oai {
+  font-size: 22px;
+}
+.oai-mark {
+  display: block;
+  width: 1em;
+  height: 1em;
+  color: var(--text);
+  transition: color 1.2s;
+  transform-origin: 50% 50%;
+}
+.oai-wedge {
+  fill: #fff;
+  transition: fill 1.4s;
+}
+.oai-wedge.px-dead {
+  fill: #3a3a3a; /* mask luminance ≈ the dimmed-pixel opacity Clawd uses */
+}
+.rot[data-stage='fresh'] .oai-mark {
+  animation: oai-turn 18s linear infinite;
+}
+.rot[data-stage='rotting'] .oai-mark {
+  color: var(--clawd-60);
+  animation: oai-turn 34s linear infinite;
+}
+.rot[data-stage='late'] .oai-mark {
+  color: var(--clawd-80);
+  animation: oai-wobble 5.5s ease-in-out infinite;
+}
+.rot[data-stage='dying'] .oai-mark {
+  color: var(--clawd-90);
+  animation: oai-gasp 7.5s ease-in-out infinite;
+}
+.rot[data-stage='dead'] .oai-mark {
+  color: var(--clawd-dead);
+  transform: rotate(180deg) translateY(8%);
+}
+@keyframes oai-turn {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes oai-wobble {
+  0%,
+  100% {
+    transform: rotate(8deg) translateY(4%);
+  }
+  50% {
+    transform: rotate(14deg) translateY(6%) scale(1.03, 0.97);
+  }
+}
+@keyframes oai-gasp {
+  0%,
+  100% {
+    transform: rotate(24deg) translateY(10%) scale(1);
+  }
+  46%,
+  54% {
+    transform: rotate(24deg) translateY(10%) scale(1.05, 0.95);
+  }
+}
+.oai-soul {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 0.5em;
+  height: 0.5em;
+  transform: translateX(-50%);
+  color: var(--text);
+  opacity: 0;
+  pointer-events: none;
+}
+.rot[data-stage='dead'] .oai-soul {
+  animation: cl-soul-rise 9s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .oai-mark,
+  .oai-soul {
+    animation: none !important;
+  }
+}
+
+/* ── the CLI picker in the launch dialog ─────────────────────────────── */
+.field input[type='text'] {
+  width: 100%;
+  background: var(--bg0);
+  border: 1px solid var(--line-bright);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 10px;
+}
+.field input[type='text']:focus {
+  outline: none;
+  border-color: var(--clay-dim);
+}
+.field input[type='text']:disabled {
+  opacity: 0.5;
+}
+.cli-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cli-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 10px;
+  background: var(--bg0);
+  border: 1px solid var(--line-bright);
+  border-radius: 7px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.cli-opt:hover {
+  border-color: var(--faint);
+}
+.cli-opt.active {
+  border-color: var(--clay);
+  box-shadow: 0 0 0 1px var(--clay-dim) inset;
+}
+.cli-opt[data-missing='yes'] {
+  opacity: 0.6;
+}
+.cli-opt .cli-mark {
+  font-size: 13px;
+}
+.cli-opt .cli-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sage);
+}
+.cli-opt[data-missing='yes'] .cli-status {
+  background: var(--ghost);
+}
+.cli-manage {
+  margin-left: auto;
+}
+.cli-missing-note {
+  margin-top: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--amber);
+}
+.cli-missing-note.muted {
+  color: var(--faint);
+}
+
+/* ── Manage CLIs ─────────────────────────────────────────────────────── */
+.modal.clis {
+  width: min(780px, 95vw);
+}
+.cli-intro {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.cli-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 9px 12px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  margin-bottom: 6px;
+}
+.cli-row .cli-mark {
+  font-size: 15px;
+}
+.cli-row-main {
+  min-width: 0;
+}
+.cli-row-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.cli-row-tag {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border: 1px solid var(--line-bright);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.cli-row-ver {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.cli-row-cmd {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cli-row-status {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.cli-row-status[data-ok='yes'] {
+  color: var(--sage);
+}
+.cli-row-status[data-ok='no'] {
+  color: var(--coral);
+}
+.cli-row-actions {
+  display: flex;
+  gap: 6px;
+}
+.cli-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.cli-form .field {
+  margin: 0;
+}
+.cli-form .wide {
+  grid-column: 1 / -1;
+}
+.cli-form .modal-actions {
+  gap: 8px;
+  align-items: center;
+}
+.cli-form-note {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.cli-form-note code {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.cli-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cli-badge-row .cli-letter-input {
+  width: 64px;
+  text-transform: uppercase;
+}
+.cli-badge-row input[type='color'] {
+  width: 36px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line-bright);
+  border-radius: 5px;
+  background: var(--bg0);
+}
+.cli-badge-row .cli-mark {
+  font-size: 18px;
+}

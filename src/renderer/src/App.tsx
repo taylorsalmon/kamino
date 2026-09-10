@@ -11,7 +11,9 @@ import { HandoffDialog } from './components/HandoffDialog'
 import { AirspaceDialog } from './components/AirspaceDialog'
 import { HyperdriveDialog } from './components/HyperdriveDialog'
 import { canRaisePr, RaisePrButton } from './components/RaisePrButton'
+import { CliMark } from './components/CliMark'
 import { focusTerminal, setTermFontSize } from './terminals'
+import { cliKindOf, loadClis } from './clis'
 import { agoShort, elapsed, jediQuote, KIND_WORD, prBadge, STATE_WORD } from './format'
 
 type ViewMode = 'grid' | 'focus'
@@ -33,6 +35,8 @@ interface PtyRef {
   ptyId: string
   pid: number
   cwd: string
+  /** which CLI runs in it — for the brand mark on a pane that is still growing */
+  cli?: string
 }
 
 /** pane size in grid tracks — snaps to whole tracks, never per-pixel */
@@ -201,6 +205,7 @@ export default function App(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
+    void loadClis() // brand marks and approve keys read from the registry
     window.fleet.getFleet().then(setSnap)
     window.fleet.getPrStatus().then(setPrStatus)
     window.fleet.ptyList().then(setPtyRefs) // survive renderer reloads
@@ -542,7 +547,7 @@ export default function App(): React.JSX.Element {
           )}
           <span
             className="count kind-split"
-            title="Fleet sees every Claude Code process on this machine — including ones running in other terminals and headless/background sessions, not just the terminals you have open"
+            title="Fleet sees every Claude Code process on this machine — including ones running in other terminals and headless/background sessions — plus every Codex or custom-CLI clone it commissioned itself"
           >
             {kinds.embedded} in bays · {kinds.external} field-deployed · {kinds.background} covert ops
           </span>
@@ -769,6 +774,7 @@ export default function App(): React.JSX.Element {
               paneId={p.ptyId}
               instance={null}
               ptyId={p.ptyId}
+              cli={p.cli}
               now={now}
               slot={gridInstances.length + ix}
               size={paneSize(p.ptyId)}
@@ -800,7 +806,10 @@ export default function App(): React.JSX.Element {
               <span className="rail" />
               <span className="card-body">
                 <span className="card-top">
-                  <span className="card-name">{p.cwd.split(/[\\/]/).pop() || 'new clone'}</span>
+                  <span className="card-name">
+                    <CliMark kind={cliKindOf(p.cli)} cli={p.cli} />
+                    {p.cwd.split(/[\\/]/).pop() || 'new clone'}
+                  </span>
                   <span className="state-word" data-state="busy">
                     CLONING
                   </span>
@@ -870,6 +879,10 @@ export default function App(): React.JSX.Element {
             <div className="workspace-bar hud">
               <div className="hud-row">
                 <span className="workspace-name">
+                  <CliMark
+                    kind={selectedInstance?.cliKind ?? cliKindOf(selectedPty.cli)}
+                    cli={selectedInstance?.cli ?? selectedPty.cli}
+                  />
                   {selectedInstance?.name ?? 'growing…'}
                   {selectedInstance && (
                     <span className="state-pill" data-state={selectedInstance.state}>
@@ -987,7 +1000,9 @@ export default function App(): React.JSX.Element {
                     {selectedInstance.recent.lastPrompt || '—'}
                   </span>
                   <span className="hud-quote" title={selectedInstance.recent.lastAssistantText}>
-                    <span className="who">✦ clone</span>{' '}
+                    <span className="who">
+                      <CliMark kind={selectedInstance.cliKind} cli={selectedInstance.cli} /> clone
+                    </span>{' '}
                     {selectedInstance.recent.lastAssistantText || '—'}
                   </span>
                 </div>

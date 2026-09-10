@@ -155,7 +155,11 @@ export function transcriptPath(cwd: string, sessionId: string): string {
  */
 export function describeCwd(cwd: string): { repo: string; worktree?: string } {
   const parts = cwd.split(/[\\/]/).filter(Boolean)
-  const at = parts.findIndex((p, i) => p === 'worktrees' && parts[i - 1] === '.claude')
+  // .claude/worktrees is the CLI's own layout; .kamino/worktrees is the one
+  // Kamino makes for CLIs without a worktree flag (see worktree.ts)
+  const at = parts.findIndex(
+    (p, i) => p === 'worktrees' && (parts[i - 1] === '.claude' || parts[i - 1] === '.kamino')
+  )
   if (at > 0 && at + 1 < parts.length) {
     return { repo: parts[at - 2] ?? cwd, worktree: parts[at + 1] }
   }
