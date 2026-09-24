@@ -3468,3 +3468,222 @@ body.pane-resizing .terminal-view {
 .cli-badge-row .cli-mark {
   font-size: 18px;
 }
+
+/* ── Phone link ───────────────────────────────────────────────────────── */
+.remote-callout {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg2);
+  border: 1px solid var(--line-bright);
+  border-left: 3px solid var(--amber);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.remote-callout.bad {
+  border-left-color: var(--coral);
+}
+.remote-callout ol {
+  margin: 6px 0 0 18px;
+  color: var(--muted);
+}
+.remote-callout a {
+  color: var(--clay);
+}
+.remote-pair {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.remote-qr {
+  flex: 0 0 auto;
+  width: 232px;
+  height: 232px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--line-bright);
+  overflow: hidden;
+}
+.remote-qr img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+.remote-pair-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.remote-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.remote-steps b {
+  color: var(--text);
+}
+.remote-url-pick {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.remote-url {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.remote-url code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px 8px;
+}
+.remote-warn {
+  font-size: 11px;
+  color: var(--coral);
+}
+.remote-warn.soft {
+  color: var(--faint);
+}
+@media (max-width: 680px) {
+  .remote-pair {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+.remote-dialog {
+  max-height: 88vh;
+}
+.rg-methods {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 8px 0 16px;
+}
+@media (max-width: 760px) {
+  .rg-methods {
+    grid-template-columns: 1fr;
+  }
+}
+.rg-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--clay);
+}
+.rg-steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 10px 0 16px;
+}
+.rg-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.rg-num {
+  flex: 0 0 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-bright);
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.rg-step.done .rg-num {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: var(--bg1);
+}
+.rg-body {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  padding-top: 2px;
+}
+.rg-body b {
+  color: var(--text);
+}
+.rg-body code,
+.rg-body kbd {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--bg0);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+  color: var(--text);
+}
+.rg-body .remote-pair {
+  margin: 10px 0 0;
+}
+.rg-input {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.rg-input input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg0);
+  border: 1px solid var(--line-bright);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 7px 10px;
+}
+.rg-input input:focus {
+  outline: none;
+  border-color: var(--clay);
+}
+.rg-row {
+  margin-top: 8px;
+}
+.rg-wait {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--faint);
+  font-style: italic;
+}
+.rg-ok {
+  margin-top: 6px;
+  color: var(--sage);
+  font-weight: 700;
+}
+.rg-note {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--faint);
+  padding-left: 36px;
+}
+.rg-small {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--faint);
+}
+.rg-link {
+  color: var(--clay);
+}

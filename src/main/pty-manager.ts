@@ -64,6 +64,9 @@ interface Held {
   /** ring buffer of recent output so a re-mounted view can restore scrollback */
   backlog: string[]
   backlogBytes: number
+  /** current terminal size — a mirror (the phone) must draw at the same width */
+  cols: number
+  rows: number
 }
 
 const BACKLOG_LIMIT = 400_000
@@ -123,11 +126,13 @@ export class PtyManager extends EventEmitter {
     if (!env.TERM || env.TERM === 'dumb') env.TERM = 'xterm-256color'
     if (!env.COLORTERM) env.COLORTERM = 'truecolor'
 
+    const cols = opts.cols ?? 120
+    const rows = opts.rows ?? 32
     const proc = pty.spawn(resolved.file, args, {
       name: 'xterm-256color',
       cwd: opts.cwd,
-      cols: opts.cols ?? 120,
-      rows: opts.rows ?? 32,
+      cols,
+      rows,
       env
     })
 
@@ -136,7 +141,9 @@ export class PtyManager extends EventEmitter {
       proc,
       info: { ptyId, pid: proc.pid, cwd: opts.cwd, cli: def.id },
       backlog: [],
-      backlogBytes: 0
+      backlogBytes: 0,
+      cols,
+      rows
     }
     this.held.set(ptyId, held)
 
@@ -161,7 +168,18 @@ export class PtyManager extends EventEmitter {
   }
 
   resize(ptyId: string, cols: number, rows: number): void {
-    if (cols > 0 && rows > 0) this.held.get(ptyId)?.proc.resize(cols, rows)
+    const h = this.held.get(ptyId)
+    if (!h || !(cols > 0 && rows > 0)) return
+    h.proc.resize(cols, rows)
+    if (h.cols === cols && h.rows === rows) return
+    h.cols = cols
+    h.rows = rows
+    this.emit('resize', ptyId, cols, rows)
+  }
+
+  size(ptyId: string): { cols: number; rows: number } | null {
+    const h = this.held.get(ptyId)
+    return h ? { cols: h.cols, rows: h.rows } : null
   }
 
   kill(ptyId: string): void {

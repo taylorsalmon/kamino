@@ -543,3 +543,94 @@ export interface WrapupReport {
   repos: WrapupRepo[]
   generatedAt: number
 }
+
+// ── Phone link: command the fleet from a phone ─────────────────────────────
+
+/**
+ * How the phone reaches this PC, which decides where the link listens.
+ * Loopback is always on (desktop testing, tunnels, `tailscale serve`).
+ * - 'wifi'      every interface — same network only, plain HTTP
+ * - 'tunnel'    loopback only; a VS Code port-forward (dev tunnel) carries it,
+ *               so nothing on the network can connect at all
+ * - 'tailscale' loopback + this machine's tailnet address
+ */
+export type RemoteMethod = 'wifi' | 'tunnel' | 'tailscale'
+
+export interface RemoteSettings {
+  enabled: boolean
+  method: RemoteMethod
+  port: number
+  /** the https address VS Code forwarded the port to (tunnel method) */
+  tunnelUrl?: string
+}
+
+/** One way a phone can reach this machine. */
+export interface RemoteUrl {
+  /** 'Tailscale' | 'Wi-Fi' | 'VS Code tunnel' | 'This PC' */
+  label: string
+  /** base url, no token */
+  url: string
+  /** plain HTTP across a network other people share */
+  exposed?: boolean
+}
+
+export interface RemoteStatus {
+  settings: RemoteSettings
+  /** listening right now */
+  listening: boolean
+  urls: RemoteUrl[]
+  /** the pairing secret — only ever shown on the desktop, inside the QR */
+  token: string
+  /** phones holding a live stream open */
+  clients: number
+  lastSeenAt?: number
+  /** tailscale method, but no tailnet address on this machine yet */
+  tailscaleMissing?: boolean
+  /** this PC's addresses on the local network (for the Wi-Fi steps) */
+  lanAddresses: string[]
+  error?: string
+}
+
+/** An Instance as the phone sees it: plus the terminal it can be steered through. */
+export interface RemoteInstance extends Instance {
+  /** set when Kamino owns its terminal — only then can the phone type into it */
+  ptyId?: string
+}
+
+/** An embedded terminal that has not bound to a session yet ("growing…"). */
+export interface RemotePty extends PtyInfo {
+  cols: number
+  rows: number
+  bound: boolean
+}
+
+/** Everything the phone board draws, pushed on every change. */
+export interface RemoteFleetState {
+  host: string
+  /** the palette the CLIs paint for — the screen mirror must match */
+  termTheme: 'light' | 'dark'
+  instances: RemoteInstance[]
+  ptys: RemotePty[]
+  pr: PrStatusMap
+  updatedAt: number
+}
+
+/** A CLI as the commission sheet needs it. */
+export interface RemoteCli {
+  id: string
+  kind: CliKind
+  label: string
+  brand: CliBrand
+  permissionModes: { value: string; label: string }[]
+  supports: CliDefinition['supports']
+  installed: boolean
+}
+
+/** Pushed to the phone when a clone wants you or finishes a long turn. */
+export interface RemoteAlert {
+  kind: 'ask' | 'done' | 'info'
+  sessionId: string
+  title: string
+  body: string
+  at: number
+}

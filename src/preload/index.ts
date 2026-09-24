@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, CliDefinition, CliStatus, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, UpdateState, WrapupReport, ZoomState } from '../shared/types'
+import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, CliDefinition, CliStatus, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, RemoteSettings, RemoteStatus, TranscriptTailMsg, UpdateState, WrapupReport, ZoomState } from '../shared/types'
 
 const api = {
   // which CLIs a clone can run on, and whether each is installed here
@@ -45,6 +45,23 @@ const api = {
     const listener = (_e: unknown, ptyId: string, exitCode: number): void => cb(ptyId, exitCode)
     ipcRenderer.on('pty:exit', listener)
     return () => ipcRenderer.removeListener('pty:exit', listener)
+  },
+  /** a clone was commissioned from somewhere other than this window (the phone) */
+  onPtySpawned: (cb: (info: PtyInfo) => void): (() => void) => {
+    const listener = (_e: unknown, info: PtyInfo): void => cb(info)
+    ipcRenderer.on('pty:spawned', listener)
+    return () => ipcRenderer.removeListener('pty:spawned', listener)
+  },
+
+  // phone link: command the fleet from a phone
+  remoteGet: (): Promise<RemoteStatus> => ipcRenderer.invoke('remote:get'),
+  remoteSet: (next: Partial<RemoteSettings>): Promise<RemoteStatus> => ipcRenderer.invoke('remote:set', next),
+  /** new pairing secret — every paired phone has to scan again */
+  remoteRotate: (): Promise<RemoteStatus> => ipcRenderer.invoke('remote:rotate'),
+  onRemote: (cb: (st: RemoteStatus) => void): (() => void) => {
+    const listener = (_e: unknown, st: RemoteStatus): void => cb(st)
+    ipcRenderer.on('remote:state', listener)
+    return () => ipcRenderer.removeListener('remote:state', listener)
   },
 
   // pickers
