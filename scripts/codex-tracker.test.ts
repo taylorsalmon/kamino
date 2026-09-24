@@ -78,9 +78,13 @@ async function main(): Promise<void> {
 
   // the rollout appears a moment later, as it does when the TUI starts
   const sid = '01a088ea-72da-7c31-8d09-8a667a6e3619'
-  const day = path.join(home, 'sessions', '2026', '09', '10')
+  // today's folder, as Codex writes it — the tracker only opens day folders
+  // from the launch day on, so a fixed date passes once and fails ever after
+  const d = new Date(startedAt)
+  const [yy, mm, dd] = [d.getFullYear(), d.getMonth() + 1, d.getDate()].map((n) => String(n).padStart(2, '0'))
+  const day = path.join(home, 'sessions', yy, mm, dd)
   fs.mkdirSync(day, { recursive: true })
-  const file = path.join(day, `rollout-2026-09-10T11-24-21-${sid}.jsonl`)
+  const file = path.join(day, `rollout-${yy}-${mm}-${dd}T11-24-21-${sid}.jsonl`)
   const t = (ms: number): string => new Date(startedAt + ms).toISOString()
   const line = (o: unknown): string => JSON.stringify(o) + '\n'
   fs.writeFileSync(
