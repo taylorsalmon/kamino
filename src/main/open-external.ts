@@ -34,8 +34,8 @@ export function setOpenLogPath(p: string): void {
 }
 
 function note(raw: string): void {
-  // the phone link pairing secret rides in #k= — it never goes to disk
-  const line = raw.replace(/#k=[^\s&]+/g, '#k=…')
+  // the phone link pairing secret rides in #k= or ?k= — it never goes to disk
+  const line = raw.replace(/([#?&]k=)[^\s&#]+/g, '$1…')
   if (!logPath) return
   try {
     if ((fs.statSync(logPath).size ?? 0) > MAX_LOG_BYTES) fs.writeFileSync(logPath, '')
