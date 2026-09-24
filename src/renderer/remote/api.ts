@@ -1,6 +1,6 @@
 /**
  * The phone's line to Kamino: the pairing token, JSON calls, and the live
- * state stream. The token arrives once in the QR link (#k=…) and is kept —
+ * state stream. The token arrives once in the QR link (?k=…) and is kept —
  * in the URL too, because iOS gives a Home Screen app its own storage and
  * the link it was saved from is all it has.
  */
@@ -10,6 +10,11 @@ import type { RemoteAlert, RemoteFleetState } from '../../shared/types'
 const TOKEN_KEY = 'kamino:token'
 
 export function readToken(): string | null {
+  // the QR carries ?k= — a tunnel's "Continue" page loses #k= (the fragment
+  // never reaches a server), but it hands the query back. Move it to the hash
+  // so it stays out of history and server logs from here on
+  const q = new URLSearchParams(location.search).get('k')
+  if (q) history.replaceState(null, '', `${location.pathname}#k=${encodeURIComponent(q)}`)
   const m = /[#&]k=([^&]+)/.exec(location.hash)
   if (m) {
     const t = decodeURIComponent(m[1])

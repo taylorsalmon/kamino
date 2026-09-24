@@ -168,6 +168,8 @@ async function run(): Promise<void> {
   // the phone app, and nothing else
   const page = await get('/')
   check('/ serves the phone page without a token', [page.status, page.body], [200, '<html>phone</html>'])
+  const qrLink = await get(`/?k=${token}`)
+  check('QR link (?k=) serves the phone page', [qrLink.status, qrLink.body], [200, '<html>phone</html>'])
   check('desktop board is not served', (await get('/index.html')).status, 404)
   check('no escaping the folder', (await get('/assets/../../secret.txt')).status, 404)
   check('encoded escape blocked too', (await get('/assets/%2e%2e/%2e%2e/secret.txt')).status, 404)

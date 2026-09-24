@@ -351,7 +351,8 @@ function TailscaleSteps({ st, connected }: { st: RemoteStatus; connected: boolea
 }
 
 function PairQr({ url, token }: { url: RemoteUrl; token: string }): React.JSX.Element {
-  const pairUrl = `${url.url}/#k=${token}`
+  // ?k=, not #k=: a tunnel's "Continue" page drops the fragment (LKG-98)
+  const pairUrl = `${url.url}/?k=${token}`
   const [qr, setQr] = useState('')
   const [copied, setCopied] = useState(false)
   useEffect(() => {
