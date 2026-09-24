@@ -407,11 +407,17 @@ export class RemoteServer extends EventEmitter {
   }
 
   private authorised(req: http.IncomingMessage, url: URL): boolean {
+    // X-Kamino-Key first: VS Code dev tunnels drop Authorization before it
+    // reaches us (microsoft/dev-tunnels#356), so Bearer only works off-tunnel
+    const custom = req.headers['x-kamino-key']
     const header = req.headers.authorization
-    const given = header?.startsWith('Bearer ')
-      ? header.slice(7)
-      : // EventSource cannot set headers, so streams carry it in the query
-        url.searchParams.get('k') ?? ''
+    const given =
+      typeof custom === 'string' && custom
+        ? custom
+        : header?.startsWith('Bearer ')
+          ? header.slice(7)
+          : // EventSource cannot set headers, so streams carry it in the query
+            url.searchParams.get('k') ?? ''
     const a = crypto.createHash('sha256').update(given).digest()
     const b = crypto.createHash('sha256').update(this.stored.token).digest()
     return given.length > 0 && crypto.timingSafeEqual(a, b)

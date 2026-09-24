@@ -66,6 +66,8 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
     res = await fetch(`/api/${path}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: {
+        // the tunnel strips Authorization; this one gets through
+        'X-Kamino-Key': token ?? '',
         Authorization: `Bearer ${token ?? ''}`,
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
       },

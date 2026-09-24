@@ -160,6 +160,10 @@ async function run(): Promise<void> {
   check('api is never cached', ok.headers.get('cache-control'), 'no-store')
   check('no CORS header — pages elsewhere cannot read it', ok.headers.get('access-control-allow-origin'), null)
   check('token in query works (EventSource)', (await get(`/api/projects?k=${token}`)).status, 200)
+  const viaHeader = (key: string): Promise<Response> =>
+    fetch(base + '/api/state', { headers: { 'X-Kamino-Key': key } })
+  check('X-Kamino-Key works (tunnel drops Authorization)', (await viaHeader(token)).status, 200)
+  check('wrong X-Kamino-Key → 401', (await viaHeader('y'.repeat(32))).status, 401)
 
   // the phone app, and nothing else
   const page = await get('/')
