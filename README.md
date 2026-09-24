@@ -83,6 +83,22 @@ Both triggers are facts GitHub reports, never inferences about what a clone is "
 
 The rules that keep it honest: it acts on an observed **transition** only, so a PR that was already red before Kamino started is never touched (on restart the owning clones have usually moved on, and a burst of orders would land mid-task); an intent it can't deliver is held and retried rather than dropped; a clone waiting on a decision of yours is left alone; attempts are capped per PR and the budget resets only if the PR recovers; and every action *and every skip* is logged, because an automation you can't audit is one you can't trust. Orders go into the clone's own terminal, so you can read exactly what it was told and take over. `npm test` covers all of it.
 
+## Phone link — the fleet from your phone
+
+Off until you switch it on (⋯ menu → 📱 Phone link). Kamino serves a phone-sized board: every clone sorted by who needs you, one-tap answers for permission prompts, plans and questions, a composer that types straight into a clone's terminal, a live mirror of the terminal itself (with a key strip for Esc / arrows / Enter / digits), the task list, context rot, PRs and Linear issues, recap, raise-PR, decommission — and **Commission** a new clone on any CLI, with the same worktree / ship / Linear orders the desktop dialog gives. An alert banner (and a buzz) arrives the moment a clone awaits orders.
+
+The dialog walks you through connecting, step by step, ticking each step off as it sees it done. Pick one of three ways in:
+
+| Way in | Install? | Works from | How |
+|---|---|---|---|
+| **VS Code tunnel** (default) | No | Anywhere | VS Code → Ports → Forward a Port `47832` (Private, GitHub sign-in) → paste the forwarded `https://…devtunnels.ms` address into the dialog → scan |
+| **Home Wi-Fi** | No | Same Wi-Fi only | Scan. Plain HTTP, so home networks only; the dialog says so |
+| **Tailscale** | Yes, on PC + phone | Anywhere | Install, sign in to the same account on both, scan. The dialog has a copy-ready request for IT |
+
+Then Share → **Add to Home Screen** so it opens like an app.
+
+It is remote control of this machine by design, so the fence is narrow: off by default; the tunnel method listens on loopback only, so nothing on the network can connect at all, Tailscale adds only the tailnet address, and Home Wi-Fi opens every interface over plain HTTP and says so; every API call carries a pairing token that only ever leaves the desktop inside the QR; wrong tokens are throttled; keystrokes come from a fixed allowlist; launch bodies are stripped to known fields; no CORS, so no web page can read the API; and **Unpair all phones** mints a new token that locks every phone out at once. Clones started in some other terminal show on the phone but can't be typed into — Kamino doesn't own their terminal. The PC has to stay awake. For HTTPS, run `tailscale serve --bg 47832` once and pair via the `https://<pc>.<tailnet>.ts.net` address instead. `npm test` covers the fence.
+
 ## Keeping clones from killing each other
 
 - **Own worktree** — a launch-dialog checkbox that gives the clone its own git worktree (`claude --worktree`, tree at `<repo>/.claude/worktrees/<name>` on branch `worktree-<name>`; for Codex and custom CLIs, which have no such flag, Kamino makes the same shape itself at `<repo>/.kamino/worktrees/<name>` and starts the clone inside it). This is the real answer to running several clones on one repo: a folder has a single checked-out branch, so clones sharing one commit to the same branch and land in one PR however carefully they work. Separate trees mean separate branches, separate PRs, and no possibility of collision. Cards keep showing the parent repo's name (not the worktree directory's) with a green `⑄ name` chip, so three clones on one project stay legible. Kamino also adds both worktree folders to the repo's `.git/info/exclude` first — git does not ignore a nested worktree, and otherwise a clone with standing orders would `git add -A` an entire second checkout into its commit.
@@ -146,7 +162,9 @@ src/main/
   retitle.ts           live pane titles — the ai-title goes stale, this does not
   claude-cli.ts        one-shot claude -p calls, stripped back to the question
   handoff.ts           reincarnation: brief → successor → seed, and /compact
+  remote-server.ts     the phone link: phone app + JSON/SSE API, token-fenced
 src/renderer/          React UI (the wall, roster cards, dialogs)
+src/renderer/remote/   the phone board (served by remote-server, not Electron)
 ```
 
 ## Backlog

@@ -1,4 +1,4 @@
-import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, CliDefinition, CliStatus, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, TranscriptTailMsg, UpdateState, WrapupReport, ZoomState } from '../shared/types'
+import type { AirspaceState, ArbiterCase, ArbiterSettings, ArbiterState, CliDefinition, CliStatus, DeconflictEvent, DeconflictMode, FleetSnapshot, HandoffProgress, HyperdriveEvent, HyperdriveSettings, HyperdriveState, LaunchRequest, PrCreateResult, PrStatusMap, PtyInfo, RecentProject, RecentSession, RemoteSettings, RemoteStatus, TranscriptTailMsg, UpdateState, WrapupReport, ZoomState } from '../shared/types'
 
 declare global {
   interface Window {
@@ -20,6 +20,11 @@ declare global {
       ptyList: () => Promise<PtyInfo[]>
       onPtyData: (cb: (ptyId: string, data: string) => void) => () => void
       onPtyExit: (cb: (ptyId: string, exitCode: number) => void) => () => void
+      onPtySpawned: (cb: (info: PtyInfo) => void) => () => void
+      remoteGet: () => Promise<RemoteStatus>
+      remoteSet: (next: Partial<RemoteSettings>) => Promise<RemoteStatus>
+      remoteRotate: () => Promise<RemoteStatus>
+      onRemote: (cb: (st: RemoteStatus) => void) => () => void
       recentProjects: () => Promise<RecentProject[]>
       recentSessions: () => Promise<RecentSession[]>
       pickFolder: () => Promise<string | null>

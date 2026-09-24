@@ -24,6 +24,7 @@ import { Retitler } from './retitle'
 import { Zoom } from './zoom'
 import { CliRegistry } from './cli-registry'
 import { CodexTracker } from './codex-tracker'
+import { RemoteServer } from './remote-server'
 import type {
   ArbiterCase,
   ArbiterSettings,
@@ -36,6 +37,11 @@ import type {
   HyperdriveSettings,
   Instance,
   LaunchRequest,
+  PtyInfo,
+  RemoteAlert,
+  RemoteCli,
+  RemoteFleetState,
+  RemoteSettings,
   ZoomState
 } from '../shared/types'
 
@@ -85,6 +91,139 @@ const updater = new Updater()
 const retitler = new Retitler(store)
 // whole-board zoom (Ctrl+= / - / 0, Ctrl+wheel), remembered across restarts
 const zoom = new Zoom(path.join(app.getPath('userData'), 'zoom.json'))
+
+/**
+ * Commission a clone — the one path the desktop launch dialog and the phone
+ * both take, so a clone started from the couch is the same as one started at
+ * the desk (worktree, standing orders, Codex binding and all).
+ */
+async function commission(req: LaunchRequest): Promise<PtyInfo> {
+  const def = ptys.definition(req.cli)
+  let cwd = req.cwd
+  if (req.worktree) {
+    // before the tree exists, so the parent repo never reports it as untracked
+    // and no clone can stage a second checkout into its own commit
+    await ensureWorktreeIgnored(req.cwd)
+    // Claude makes its own tree (--worktree); everyone else gets Kamino's
+    if (!def.supports.nativeWorktree) cwd = await createWorktree(req.cwd, req.worktreeName)
+  }
+  const info = ptys.spawn({
+    cwd,
+    cli: def.id,
+    resumeSessionId: req.resumeSessionId,
+    initialPrompt: req.initialPrompt,
+    permissionMode: req.permissionMode,
+    model: req.model,
+    autoShip: req.autoShip,
+    linear: req.linear,
+    linearIssue: req.linearIssue,
+    worktree: req.worktree,
+    worktreeName: req.worktreeName
+  })
+  if (def.kind === 'codex') {
+    codex.expect({
+      ptyId: info.ptyId,
+      pid: info.pid,
+      cwd,
+      startedAt: Date.now(),
+      resumeSessionId: req.resumeSessionId,
+      permissionMode: req.permissionMode,
+      model: req.model
+    })
+  }
+  // the desktop board must grow a pane for it, whoever asked
+  broadcast('pty:spawned', info)
+  remote.pushState()
+  return info
+}
+
+/** The CLI paints for its own theme; a terminal (desktop or phone) must
+ *  match it. Claude Code stores it in ~/.claude.json ("theme"); absent = dark. */
+function claudeTheme(): 'light' | 'dark' {
+  try {
+    const raw = fs.readFileSync(path.join(os.homedir(), '.claude.json'), 'utf-8')
+    const theme = JSON.parse(raw).theme
+    return typeof theme === 'string' && theme.includes('light') ? 'light' : 'dark'
+  } catch {
+    return 'dark'
+  }
+}
+
+/** The phone's whole board: every instance plus the terminal that steers it. */
+function remoteState(): RemoteFleetState {
+  const snap = store.snapshot()
+  const boundPids = new Set(snap.instances.filter((i) => i.state !== 'dead').map((i) => i.pid))
+  return {
+    host: os.hostname(),
+    termTheme: claudeTheme(),
+    instances: snap.instances.map((i) => {
+      const ptyId = i.state === 'dead' ? null : ptys.ptyIdForPid(i.pid)
+      return ptyId ? { ...i, ptyId } : i
+    }),
+    ptys: ptys.list().map((p) => ({
+      ...p,
+      ...(ptys.size(p.ptyId) ?? { cols: 120, rows: 32 }),
+      bound: boundPids.has(p.pid)
+    })),
+    pr: prPoller.snapshot(),
+    updatedAt: snap.updatedAt
+  }
+}
+
+// the phone link — off until switched on from ⋯ → Phone link
+const remote = new RemoteServer(path.join(app.getPath('userData'), 'remote.json'), {
+  state: remoteState,
+  clis: async (): Promise<RemoteCli[]> => {
+    const status = await clis.statuses()
+    return clis.list().map((c) => ({
+      id: c.id,
+      kind: c.kind,
+      label: c.label,
+      brand: c.brand,
+      permissionModes: c.permissionModes.map((m) => ({ value: m.value, label: m.label })),
+      supports: c.supports,
+      installed: status[c.id]?.installed ?? false
+    }))
+  },
+  projects: () => recentProjects(),
+  tail: (sessionId) => {
+    const inst = store.get(sessionId)
+    const file = store.transcriptFile(sessionId)
+    return inst && file ? transcriptTail(file, inst.cliKind, 12) : []
+  },
+  recap: async (sessionId) => {
+    const inst = store.get(sessionId)
+    const file = store.transcriptFile(sessionId)
+    if (!inst) throw new Error('unknown session')
+    if (!file || inst.cliKind === 'custom') throw new Error('No transcript to report from for this CLI.')
+    return recap(sessionId, file, inst.cliKind)
+  },
+  raisePr: async (sessionId) => {
+    const inst = store.get(sessionId)
+    if (!inst) return { ok: false, error: 'unknown session' }
+    const res = await raisePr(inst.cwd)
+    if (res.ok && res.url && typeof res.number === 'number') {
+      store.addPr(sessionId, { number: res.number, url: res.url })
+    }
+    return res
+  },
+  commission,
+  approveKeys: (ptyId) => ptys.definition(ptys.cliOf(ptyId) ?? undefined).approveKeys,
+  pty: {
+    exists: (ptyId) => ptys.size(ptyId) !== null,
+    write: (ptyId, data) => ptys.write(ptyId, data),
+    kill: (ptyId) => ptys.kill(ptyId),
+    backlog: (ptyId) => ptys.backlog(ptyId),
+    size: (ptyId) => ptys.size(ptyId),
+    events: ptys
+  },
+  staticRoot: process.env['ELECTRON_RENDERER_URL'] ? null : path.join(__dirname, '../renderer'),
+  devUrl: process.env['ELECTRON_RENDERER_URL'] ?? null
+})
+
+function remoteAlert(kind: RemoteAlert['kind'], sessionId: string, title: string, body: string): void {
+  remote.alert({ kind, sessionId, title, body, at: Date.now() })
+}
 let win: BrowserWindow | null = null
 /** true once the user has confirmed the update restart — the close guard must
  *  stand down or its dialog would cancel the very quit the user just approved */
@@ -130,22 +269,22 @@ function onHook(ev: HookEvent): void {
       const reason = ev.message || 'needs your input'
       const kind = store.setNeedsYou(ev.sessionId, reason)
       // kind === null → just the idle nag; no toast, board stays calm
-      if (kind && shouldToast(ev.sessionId)) {
+      if (kind) {
         const ask = store.get(ev.sessionId)?.now.pendingAsk
-        notify(`${inst?.name ?? 'Clone'} awaits orders`, ask || reason, ev.sessionId)
+        const title = `${inst?.name ?? 'Clone'} awaits orders`
+        // the phone hears every real ask — you're not at the desk to see the board
+        remoteAlert('ask', ev.sessionId, title, ask || reason)
+        if (shouldToast(ev.sessionId)) notify(title, ask || reason, ev.sessionId)
       }
       break
     }
     case 'stop': {
       const turnStartedAt = inst?.now.turnStartedAt
       store.clearNeedsYou(ev.sessionId, 'idle')
-      if (
-        inst &&
-        turnStartedAt &&
-        Date.now() - turnStartedAt > LONG_TURN_MS &&
-        shouldToast(ev.sessionId)
-      ) {
-        notify(`${inst.name} — mission complete`, inst.now.title || 'Another happy landing.', ev.sessionId)
+      if (inst && turnStartedAt && Date.now() - turnStartedAt > LONG_TURN_MS) {
+        const body = inst.now.title || 'Another happy landing.'
+        remoteAlert('done', ev.sessionId, `${inst.name} — mission complete`, body)
+        if (shouldToast(ev.sessionId)) notify(`${inst.name} — mission complete`, body, ev.sessionId)
       }
       break
     }
@@ -218,11 +357,13 @@ app.whenReady().then(() => {
   retitler.start()
   store.on('snapshot', (snap: FleetSnapshot) => {
     broadcast('fleet:snapshot', snap)
+    remote.pushState()
     prPoller.setWatched(snap.instances.flatMap((i) => i.recent.prs.map((p) => p.url)))
   })
   prPoller.start()
   prPoller.on('update', (map) => {
     broadcast('pr:status', map)
+    remote.pushState()
     hyperdrive.onPrStatus(map)
   })
   hyperdrive.on('event', (ev: HyperdriveEvent) => {
@@ -244,12 +385,16 @@ app.whenReady().then(() => {
   codex.start()
   codex.on('ask', (sessionId: string, text: string) => {
     const inst = store.get(sessionId)
-    if (inst && shouldToast(sessionId)) notify(`${inst.name} awaits orders`, text, sessionId)
+    if (!inst) return
+    remoteAlert('ask', sessionId, `${inst.name} awaits orders`, text)
+    if (shouldToast(sessionId)) notify(`${inst.name} awaits orders`, text, sessionId)
   })
   codex.on('stop', (sessionId: string, turnStartedAt?: number) => {
     const inst = store.get(sessionId)
-    if (inst && turnStartedAt && Date.now() - turnStartedAt > LONG_TURN_MS && shouldToast(sessionId)) {
-      notify(`${inst.name} — mission complete`, inst.now.title || 'Another happy landing.', sessionId)
+    if (inst && turnStartedAt && Date.now() - turnStartedAt > LONG_TURN_MS) {
+      const body = inst.now.title || 'Another happy landing.'
+      remoteAlert('done', sessionId, `${inst.name} — mission complete`, body)
+      if (shouldToast(sessionId)) notify(`${inst.name} — mission complete`, body, sessionId)
     }
   })
 
@@ -336,7 +481,17 @@ app.whenReady().then(() => {
   })
 
   ptys.on('data', (ptyId: string, data: string) => broadcast('pty:data', ptyId, data))
-  ptys.on('exit', (ptyId: string, exitCode: number) => broadcast('pty:exit', ptyId, exitCode))
+  ptys.on('exit', (ptyId: string, exitCode: number) => {
+    broadcast('pty:exit', ptyId, exitCode)
+    remote.pushState()
+  })
+
+  // ── phone link ───────────────────────────────────────────────────────
+  remote.on('status', (st) => broadcast('remote:state', st))
+  remote.start()
+  ipcMain.handle('remote:get', () => remote.status())
+  ipcMain.handle('remote:set', (_e, next: Partial<RemoteSettings>) => remote.setSettings(next ?? {}))
+  ipcMain.handle('remote:rotate', () => remote.rotateToken())
 
   // ── fleet ────────────────────────────────────────────────────────────
   ipcMain.handle('fleet:get', () => store.snapshot())
@@ -356,53 +511,10 @@ app.whenReady().then(() => {
 
   // the CLI paints for its own theme; the embedded terminal must match it.
   // Claude Code stores it in ~/.claude.json ("theme"); absent = dark.
-  ipcMain.handle('claude:theme', () => {
-    try {
-      const raw = fs.readFileSync(path.join(os.homedir(), '.claude.json'), 'utf-8')
-      const theme = JSON.parse(raw).theme
-      return typeof theme === 'string' && theme.includes('light') ? 'light' : 'dark'
-    } catch {
-      return 'dark'
-    }
-  })
+  ipcMain.handle('claude:theme', () => claudeTheme())
 
   // ── ptys ─────────────────────────────────────────────────────────────
-  ipcMain.handle('pty:spawn', async (_e, req: LaunchRequest) => {
-    const def = ptys.definition(req.cli)
-    let cwd = req.cwd
-    if (req.worktree) {
-      // before the tree exists, so the parent repo never reports it as untracked
-      // and no clone can stage a second checkout into its own commit
-      await ensureWorktreeIgnored(req.cwd)
-      // Claude makes its own tree (--worktree); everyone else gets Kamino's
-      if (!def.supports.nativeWorktree) cwd = await createWorktree(req.cwd, req.worktreeName)
-    }
-    const info = ptys.spawn({
-      cwd,
-      cli: def.id,
-      resumeSessionId: req.resumeSessionId,
-      initialPrompt: req.initialPrompt,
-      permissionMode: req.permissionMode,
-      model: req.model,
-      autoShip: req.autoShip,
-      linear: req.linear,
-      linearIssue: req.linearIssue,
-      worktree: req.worktree,
-      worktreeName: req.worktreeName
-    })
-    if (def.kind === 'codex') {
-      codex.expect({
-        ptyId: info.ptyId,
-        pid: info.pid,
-        cwd,
-        startedAt: Date.now(),
-        resumeSessionId: req.resumeSessionId,
-        permissionMode: req.permissionMode,
-        model: req.model
-      })
-    }
-    return info
-  })
+  ipcMain.handle('pty:spawn', (_e, req: LaunchRequest) => commission(req))
   ipcMain.on('pty:input', (_e, ptyId: string, data: string) => ptys.write(ptyId, data))
   ipcMain.on('pty:resize', (_e, ptyId: string, cols: number, rows: number) =>
     ptys.resize(ptyId, cols, rows)
@@ -550,5 +662,6 @@ app.on('window-all-closed', () => {
   // half-deciding while we shut down
   hookServer.setPreToolDecider(null)
   hookServer.stop()
+  void remote.stop()
   app.quit()
 })

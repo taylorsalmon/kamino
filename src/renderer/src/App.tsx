@@ -11,6 +11,7 @@ import { CheatSheet } from './components/CheatSheet'
 import { HandoffDialog } from './components/HandoffDialog'
 import { AirspaceDialog } from './components/AirspaceDialog'
 import { HyperdriveDialog } from './components/HyperdriveDialog'
+import { RemoteDialog } from './components/RemoteDialog'
 import { canRaisePr, RaisePrButton } from './components/RaisePrButton'
 import { CliMark } from './components/CliMark'
 import { focusTerminal, setTermFontSize } from './terminals'
@@ -69,6 +70,7 @@ export default function App(): React.JSX.Element {
   const [showWrapup, setShowWrapup] = useState(false)
   const [showAirspace, setShowAirspace] = useState(false)
   const [showHyperdrive, setShowHyperdrive] = useState(false)
+  const [showRemote, setShowRemote] = useState(false)
   const [showCheats, setShowCheats] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState<ViewMode>(
@@ -216,6 +218,8 @@ export default function App(): React.JSX.Element {
     const offPr = window.fleet.onPrStatus(setPrStatus)
     const offUpdate = window.fleet.onUpdate(setUpdate)
     const offExit = window.fleet.onPtyExit(() => window.fleet.ptyList().then(setPtyRefs))
+    // commissioned from the phone — grow its pane here too
+    const offSpawned = window.fleet.onPtySpawned(() => window.fleet.ptyList().then(setPtyRefs))
     const offSelect = window.fleet.onSelectSession((sessionId) => {
       setSelectedId(sessionId)
       setShowInfo(false)
@@ -226,6 +230,7 @@ export default function App(): React.JSX.Element {
       offPr()
       offUpdate()
       offExit()
+      offSpawned()
       offSelect()
       clearInterval(tick)
     }
@@ -655,6 +660,18 @@ export default function App(): React.JSX.Element {
                   className="menu-item"
                   onClick={() => {
                     setMenuOpen(false)
+                    setShowRemote(true)
+                  }}
+                >
+                  <span className="menu-item-title">📱 Phone link</span>
+                  <span className="menu-item-sub">
+                    watch, answer and commission clones from your phone — scan to pair
+                  </span>
+                </button>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenuOpen(false)
                     setShowAirspace(true)
                   }}
                 >
@@ -1049,6 +1066,7 @@ export default function App(): React.JSX.Element {
         />
       )}
       {showHyperdrive && <HyperdriveDialog onClose={() => setShowHyperdrive(false)} now={now} />}
+      {showRemote && <RemoteDialog onClose={() => setShowRemote(false)} now={now} />}
       {showAirspace && <AirspaceDialog onClose={() => setShowAirspace(false)} now={now} />}
       {zoomPct !== null && <div className="zoom-hud">{zoomPct}%</div>}
       {showCheats && <CheatSheet onClose={() => setShowCheats(false)} />}
