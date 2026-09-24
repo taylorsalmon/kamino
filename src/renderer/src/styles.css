@@ -13,6 +13,7 @@
   --muted: #7c8894;
   --faint: #55616d;
   --clay: #d97757;
+  --linear: #7c86e0;
   --clay-dim: #8a4a36;
   --amber: #e5a83b;
   --coral: #ff5d5d;
@@ -44,6 +45,7 @@
   --muted: #5b5342;
   --faint: #948a72;
   --clay: #c14a20;
+  --linear: #5e6ad2;
   --clay-dim: #ecc9b8;
   --amber: #a87700;
   --coral: #d63031;
@@ -604,6 +606,13 @@ body {
 .card-meta .pr-chip {
   color: var(--clay);
   flex-shrink: 0;
+}
+.card-meta .issue-chip {
+  color: var(--linear);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 .card-meta .queue-chip {
   color: var(--amber);
@@ -1280,6 +1289,18 @@ body.pane-resizing .terminal-view {
 }
 .pane-chip.pr:hover {
   background: rgba(217, 119, 87, 0.12);
+}
+.pane-chip.linear {
+  color: var(--linear);
+  cursor: pointer;
+  border: 1px solid rgba(94, 106, 210, 0.45);
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.pane-chip.linear:hover {
+  background: rgba(94, 106, 210, 0.14);
 }
 .pane-chip.queue {
   color: var(--amber);
@@ -2642,6 +2663,32 @@ body.pane-resizing .terminal-view {
   line-height: 1.5;
   color: var(--faint);
   padding-left: 22px;
+}
+.field.auto-ship.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.linear-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.linear-mark {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  vertical-align: -1px;
+}
+.linear-label .linear-mark {
+  width: 13px;
+  height: 13px;
+  color: var(--linear);
+}
+.pr-link.issue-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--linear);
 }
 .worktree-name {
   margin-left: 22px;

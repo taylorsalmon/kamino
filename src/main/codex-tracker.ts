@@ -239,7 +239,7 @@ export class CodexTracker extends EventEmitter {
       kind: 'embedded',
       state: 'idle',
       now: { title: '', activity: 'Starting up…', queued: [] },
-      recent: { lastPrompt: '', lastAssistantText: '', prs: [], turns: 0 },
+      recent: { lastPrompt: '', lastAssistantText: '', prs: [], issues: [], turns: 0 },
       startedAt: exp.startedAt,
       lastActiveAt: Date.now(),
       version: meta?.cliVersion,

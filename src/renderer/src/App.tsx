@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FleetSnapshot, Instance, PrStatusMap, UpdateState } from '../../shared/types'
 import { InstanceCard } from './components/InstanceCard'
+import { IssueChip } from './components/IssueChip'
 import { DetailPanel } from './components/DetailPanel'
 import { TerminalView } from './components/TerminalView'
 import { LaunchDialog } from './components/LaunchDialog'
@@ -941,6 +942,9 @@ export default function App(): React.JSX.Element {
                     )}
                   </span>
                   <span className="topbar-spacer" />
+                  {selectedInstance.recent.issues.length > 0 && (
+                    <IssueChip issues={selectedInstance.recent.issues} variant="pane" />
+                  )}
                   {selectedInstance.recent.prs.slice(-3).map((pr) => {
                     const badge = prBadge(prStatus[pr.url])
                     return (

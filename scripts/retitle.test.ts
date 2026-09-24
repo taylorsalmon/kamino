@@ -74,7 +74,7 @@ function instance(over: Partial<Instance>): Instance {
     kind: 'embedded',
     state: 'idle',
     now: { title: 'Opening prompt title', activity: '', queued: [] },
-    recent: { lastPrompt: '', lastAssistantText: '', prs: [], turns: 0 },
+    recent: { lastPrompt: '', lastAssistantText: '', prs: [], issues: [], turns: 0 },
     startedAt: 0,
     lastActiveAt: 0,
     ...over

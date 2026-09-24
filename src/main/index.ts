@@ -385,6 +385,8 @@ app.whenReady().then(() => {
       permissionMode: req.permissionMode,
       model: req.model,
       autoShip: req.autoShip,
+      linear: req.linear,
+      linearIssue: req.linearIssue,
       worktree: req.worktree,
       worktreeName: req.worktreeName
     })

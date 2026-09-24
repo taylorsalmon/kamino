@@ -89,6 +89,14 @@ export interface PrLink {
 
 export type PrChecks = 'pass' | 'fail' | 'pending' | 'none'
 
+/** A Linear issue the clone created or picked up — read from its transcript. */
+export interface IssueLink {
+  /** LKG-42 */
+  key: string
+  url: string
+  title?: string
+}
+
 /** Live GitHub state for a PR, fetched via the gh CLI. */
 export interface PrStatus {
   url: string
@@ -203,6 +211,8 @@ export interface InstanceRecent {
   lastAssistantText: string
   awaySummary?: string
   prs: PrLink[]
+  /** Linear issues this clone is tracking its work under */
+  issues: IssueLink[]
   turns: number
 }
 
@@ -488,6 +498,11 @@ export interface LaunchRequest {
   /** standing orders to commit, push and raise a PR when work is done.
    *  Omitted = on; only an explicit false turns it off. */
   autoShip?: boolean
+  /** standing orders to track the work as a Linear issue, assigned to the
+   *  user and kept current by the clone. Off unless explicitly true. */
+  linear?: boolean
+  /** an existing Linear issue (key or URL) to work under instead of creating one */
+  linearIssue?: string
   /** give this clone its own git worktree, so it gets its own branch and PR */
   worktree?: boolean
   worktreeName?: string

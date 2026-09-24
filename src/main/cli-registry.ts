@@ -35,6 +35,48 @@ export const AUTO_SHIP_ORDERS =
   'should not push or open a PR: you are on the repo default branch (main or master), the repo has no ' +
   'git remote, or the user has told you not to.'
 
+/**
+ * Standing orders for Linear tracking. The judgement of "does this need a
+ * ticket" is left to the clone under one rule: nothing until it is about to
+ * change a file. Questions, reading and planning never raise an issue.
+ * Free of double quotes and % for the same reason as the orders above.
+ */
+export const LINEAR_ORDERS =
+  'Track this work in Linear, team LKG, with the Linear MCP tools. Do not touch Linear until you are about to ' +
+  'create or edit a file for the first time in this session - reading, answering questions, explaining and ' +
+  'planning need no issue, and if the task turns out to need no code change, create nothing. At that moment, ' +
+  'if no issue is attached yet: when the user named one (a key like LKG-42 or a linear.app URL) use it; ' +
+  'otherwise search the team for an open issue that clearly describes this same work and use it if there is ' +
+  'one; otherwise create one with a short imperative title and a description of the goal and approach. ' +
+  'Either way, save it with assignee me and state In Progress, and tell the user in one line which issue you ' +
+  'are tracking. Then keep it current: put the key in any branch you create, in commit messages, and in the ' +
+  'pull request title or body as Fixes KEY so Linear links them; move it to In Review when a PR is open; ' +
+  'when you finish or ship, comment on the issue with what changed, what was verified and what remains, and ' +
+  'create sub-issues for follow-ups you are leaving. If the user tells you not to track this, stop and create nothing.'
+
+/** The variant when the user named the issue on the launch dialog. */
+export function linearOrdersFor(issue?: string): string {
+  const key = issue?.trim()
+  return key ? `${LINEAR_ORDERS} The user has asked you to work under Linear issue ${key}.` : LINEAR_ORDERS
+}
+
+/**
+ * Compose the clone's standing orders. A CLI takes one system-prompt flag, so
+ * every order that applies is joined into a single string here.
+ */
+export function composeOrders(o: {
+  autoShip?: boolean
+  linear?: boolean
+  linearIssue?: string
+  extra?: string
+}): string | undefined {
+  const parts: string[] = []
+  if (o.autoShip !== false) parts.push(AUTO_SHIP_ORDERS)
+  if (o.linear) parts.push(linearOrdersFor(o.linearIssue))
+  if (o.extra) parts.push(o.extra)
+  return parts.length ? parts.join(' ') : undefined
+}
+
 export const CLAUDE_CLI: CliDefinition = {
   id: 'claude',
   kind: 'claude',

@@ -4,6 +4,7 @@ import { elapsed, fmtTokens, prBadge, stateWord } from '../format'
 import { cliLabel, resumeCommand } from '../clis'
 import { RotBar } from './RotBar'
 import { CliMark } from './CliMark'
+import { LinearMark } from './LinearMark'
 import { canRaisePr, RaisePrButton } from './RaisePrButton'
 
 export function DetailPanel(props: {
@@ -158,6 +159,25 @@ export function DetailPanel(props: {
               <div key={i} className="queued-item">
                 {q}
               </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {inst.recent.issues.length > 0 && (
+        <div className="section">
+          <div className="section-label">Linear</div>
+          <div className="pr-list">
+            {inst.recent.issues.map((issue) => (
+              <button
+                key={issue.key}
+                className="pr-link issue-link"
+                title={issue.title ? `${issue.key} — ${issue.title}` : issue.key}
+                onClick={() => window.fleet.openExternal(issue.url)}
+              >
+                <LinearMark /> {issue.key}
+                {issue.title && <span className="pr-words"> {issue.title}</span>} ↗
+              </button>
             ))}
           </div>
         </div>
