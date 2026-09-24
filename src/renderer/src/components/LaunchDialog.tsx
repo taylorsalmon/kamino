@@ -4,6 +4,7 @@ import { agoShort } from '../format'
 import { cliKindOf, useClis } from '../clis'
 import { CliMark } from './CliMark'
 import { CliManagerDialog } from './CliManagerDialog'
+import { LinearMark } from './LinearMark'
 
 type Tab = 'new' | 'resume'
 
@@ -27,6 +28,11 @@ export function LaunchDialog(props: {
   const [autoShip, setAutoShip] = useState(
     () => localStorage.getItem('fleet:auto-ship') !== 'off'
   )
+  // Linear tracking: the clone raises (or picks up) an issue the moment it
+  // first changes a file, assigned to you, and keeps it current. Needs the
+  // Linear MCP connector, which Claude Code has and the others do not yet.
+  const [linear, setLinear] = useState(() => localStorage.getItem('fleet:linear') !== 'off')
+  const [linearIssue, setLinearIssue] = useState('')
   // its own worktree: a folder has one checked-out branch, so clones sharing
   // one land in the same branch and the same PR however well they behave
   const [worktree, setWorktree] = useState(false)
@@ -44,6 +50,9 @@ export function LaunchDialog(props: {
   useEffect(() => {
     localStorage.setItem('fleet:auto-ship', autoShip ? 'on' : 'off')
   }, [autoShip])
+  useEffect(() => {
+    localStorage.setItem('fleet:linear', linear ? 'on' : 'off')
+  }, [linear])
   useEffect(() => {
     localStorage.setItem('fleet:cli', cliId)
     // a mode from the previous CLI's list means nothing to this one
@@ -75,6 +84,8 @@ export function LaunchDialog(props: {
         permissionMode: permissionMode === 'default' ? undefined : permissionMode,
         model: cli.supports.model && model.trim() ? model.trim() : undefined,
         autoShip: cli.supports.standingOrders ? autoShip : false,
+        linear: canLinear && linear,
+        linearIssue: canLinear && linear ? linearIssue.trim() || undefined : undefined,
         worktree,
         worktreeName: worktree ? worktreeName.trim() || undefined : undefined
       })
@@ -96,7 +107,8 @@ export function LaunchDialog(props: {
         cwd: s.cwd,
         cli: s.cli,
         resumeSessionId: s.sessionId,
-        autoShip: def ? def.supports.standingOrders && autoShip : autoShip
+        autoShip: def ? def.supports.standingOrders && autoShip : autoShip,
+        linear: def?.kind === 'claude' && linear
       })
       props.onLaunched(info.ptyId, info.pid)
     } catch (e) {
@@ -105,6 +117,9 @@ export function LaunchDialog(props: {
       setBusy(false)
     }
   }
+
+  // only Claude Code carries the Linear MCP connector today
+  const canLinear = cli?.kind === 'claude' && !!cli.supports.standingOrders
 
   const worktreeNote = cli?.supports.nativeWorktree
     ? "A folder has one checked-out branch, so clones sharing one commit to the same branch and land in one PR no matter how carefully they work. Give this clone its own tree and it gets its own branch, its own PR, and can't collide with a sibling at all. Needs a git repo."
@@ -273,6 +288,43 @@ export function LaunchDialog(props: {
                   <span className="section-label">Standing orders: ship its own work</span>
                 </span>
                 <span className="auto-ship-note">{ordersNote}</span>
+              </label>
+            )}
+            {cli?.supports.standingOrders && (
+              <label
+                className={`field auto-ship${canLinear ? '' : ' disabled'}`}
+                title={
+                  canLinear
+                    ? 'Appended to the clone\u2019s system prompt, so it holds for the whole session'
+                    : `${cli.label} has no Linear connector yet — Claude Code only for now`
+                }
+              >
+                <span className="auto-ship-top">
+                  <input
+                    type="checkbox"
+                    checked={canLinear && linear}
+                    disabled={!canLinear}
+                    onChange={(e) => setLinear(e.target.checked)}
+                  />
+                  <span className="section-label linear-label">
+                    <LinearMark /> Track in Linear
+                  </span>
+                </span>
+                <span className="auto-ship-note">
+                  The clone raises an LKG issue the moment it first changes a file — never for a question, a read
+                  or a plan — assigned to you and set In Progress. It carries the key into the branch, commits and
+                  PR, moves it to In Review when the PR opens, and comments what shipped and what is left.
+                </span>
+                {canLinear && linear && (
+                  <input
+                    className="worktree-name"
+                    type="text"
+                    placeholder="pick up an existing issue (optional) — LKG-42 or a linear.app URL"
+                    value={linearIssue}
+                    onChange={(e) => setLinearIssue(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                )}
               </label>
             )}
             <div className="modal-actions">

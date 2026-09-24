@@ -9,7 +9,7 @@
  */
 import { EventEmitter } from 'node:events'
 import * as pty from '@lydell/node-pty'
-import { AUTO_SHIP_ORDERS, buildArgs, CLAUDE_CLI, resolveCommand, type CliRegistry } from './cli-registry'
+import { AUTO_SHIP_ORDERS, buildArgs, CLAUDE_CLI, composeOrders, resolveCommand, type CliRegistry } from './cli-registry'
 import type { CliDefinition } from '../shared/types'
 
 export { AUTO_SHIP_ORDERS }
@@ -25,11 +25,16 @@ export interface SpawnOptions {
   /** standing orders: ship finished work without being asked. Defaults on —
    *  pass false to commission a clone that leaves shipping to you. */
   autoShip?: boolean
+  /** standing orders: track the work as a Linear issue, assigned to the user,
+   *  created the moment the clone first changes a file. Off unless asked. */
+  linear?: boolean
+  /** an existing issue (LKG-42 or URL) the clone should pick up instead */
+  linearIssue?: string
   /**
    * Extra standing orders for this clone, appended to its system prompt. Used
    * for roles rather than tasks (the arbiter), which must survive the whole
    * session rather than scroll out of the window like a first prompt would.
-   * Only honoured when autoShip is false — the CLI takes one such flag.
+   * Joined with the other orders — the CLI takes one such flag.
    */
   appendSystemPrompt?: string
   /**
@@ -84,7 +89,12 @@ export class PtyManager extends EventEmitter {
         `${def.label} is not installed here — "${def.command}" was not found on PATH. Fix the command under Manage CLIs, or install it.`
       )
     }
-    const orders = opts.autoShip !== false ? AUTO_SHIP_ORDERS : opts.appendSystemPrompt
+    const orders = composeOrders({
+      autoShip: opts.autoShip,
+      linear: opts.linear,
+      linearIssue: opts.linearIssue,
+      extra: opts.appendSystemPrompt
+    })
     const args = [
       ...resolved.prefixArgs,
       ...buildArgs(def, {

@@ -7,6 +7,7 @@ import { DetailPanel } from './DetailPanel'
 import { RotBar } from './RotBar'
 import { TaskTrack } from './TaskTrack'
 import { CliMark } from './CliMark'
+import { IssueChip } from './IssueChip'
 import { canRaisePr, RaisePrButton } from './RaisePrButton'
 
 /**
@@ -191,6 +192,7 @@ export function GridPane(props: {
           )}
         </span>
         <span className="pane-chips">
+          {inst && inst.recent.issues.length > 0 && <IssueChip issues={inst.recent.issues} variant="pane" />}
           {inst &&
             inst.recent.prs.length > 0 &&
             (() => {

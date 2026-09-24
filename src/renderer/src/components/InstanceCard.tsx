@@ -2,6 +2,7 @@ import type { Instance, PrStatusMap } from '../../../shared/types'
 import { agoShort, elapsed, KIND_WORD, prBadge, stateWord } from '../format'
 import { RotBar } from './RotBar'
 import { CliMark } from './CliMark'
+import { IssueChip } from './IssueChip'
 
 export function InstanceCard(props: {
   instance: Instance
@@ -84,6 +85,7 @@ export function InstanceCard(props: {
             {inst.repo}
             {inst.gitBranch ? ` · ${inst.gitBranch}` : ''}
           </span>
+          {inst.recent.issues.length > 0 && <IssueChip issues={inst.recent.issues} variant="card" />}
           {inst.recent.prs.length > 0 && (
             <span className="pr-chip" title={inst.recent.prs.map((p) => `#${p.number}`).join(' ')}>
               PR{' '}

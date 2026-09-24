@@ -22,11 +22,14 @@ import {
   extractPickerAnswers,
   extractToolResultIds,
   extractUserPrompt,
+  isLinearSaveTool,
   isPidAlive,
   readSessionRegistry,
   readTaskList,
   scanWindowEvidence,
   TASKS_DIR,
+  toolResultText,
+  issueLinksIn,
   transcriptPath,
   type PendingToolUse,
   type SessionRegistryEntry,
@@ -67,6 +70,9 @@ interface Tracked {
   /** Last tool_use the assistant issued with no result yet — what a
    *  permission prompt would be blocked on. Cleared when its result lands. */
   lastToolUse: PendingToolUse | null
+  /** tool_use ids of Linear save_issue calls awaiting a result — the result
+   *  is where the issue key and URL come from */
+  linearToolIds?: Set<string>
   /** the Retitler has replaced the session's own ai-title — see setLiveTitle */
   titleLive?: boolean
   diedAt?: number
@@ -443,7 +449,7 @@ export class InstanceStore extends EventEmitter {
       kind: this.rosterSessionIds.has(entry.sessionId) ? 'background' : 'external',
       state: 'idle',
       now: { title: '', activity: 'Starting up…', queued: [] },
-      recent: { lastPrompt: '', lastAssistantText: '', prs: [], turns: 0 },
+      recent: { lastPrompt: '', lastAssistantText: '', prs: [], issues: [], turns: 0 },
       startedAt: entry.startedAt,
       lastActiveAt: entry.updatedAt ?? entry.startedAt,
       version: entry.version,
@@ -581,6 +587,16 @@ export class InstanceStore extends EventEmitter {
           }
           const answers = extractPickerAnswers(rec)
           if (answers) inst.recent.lastPrompt = answers
+          // a Linear save_issue result carries the issue the clone is tracking
+          if (t.linearToolIds?.size && ids.some((id) => t.linearToolIds!.has(id))) {
+            for (const issue of issueLinksIn(toolResultText(rec, t.linearToolIds))) {
+              const known = inst.recent.issues.find((i) => i.key === issue.key)
+              if (known) {
+                if (issue.title) known.title = issue.title
+              } else inst.recent.issues.push(issue)
+            }
+            for (const id of ids) t.linearToolIds.delete(id)
+          }
         }
         const prompt = extractUserPrompt(rec)
         if (prompt) {
@@ -618,6 +634,7 @@ export class InstanceStore extends EventEmitter {
           for (const blk of content) {
             if (blk?.type === 'tool_use' && blk.name) {
               t.lastToolUse = { id: blk.id, name: blk.name, input: blk.input }
+              if (blk.id && isLinearSaveTool(blk.name)) (t.linearToolIds ??= new Set()).add(String(blk.id))
               // airspace control watches these to know who is mid-edit where
               this.emit('tool-use', inst, blk.name, blk.input)
             }

@@ -9,7 +9,7 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import type { PendingAskKind, TaskItem, TaskProgress } from '../shared/types'
+import type { IssueLink, PendingAskKind, TaskItem, TaskProgress } from '../shared/types'
 
 export const CLAUDE_DIR = path.join(os.homedir(), '.claude')
 export const SESSIONS_DIR = path.join(CLAUDE_DIR, 'sessions')
@@ -510,6 +510,59 @@ export function extractPickerAnswers(rec: TranscriptRecord): string | null {
     if (answers.length) return answers.join(' · ')
   }
   return null
+}
+
+// ---------------------------------------------------------------------------
+// Linear issues — read from the results of the clone's own Linear MCP calls
+// ---------------------------------------------------------------------------
+
+/** a tool_use that creates or updates a Linear issue, whatever the MCP server is named */
+export function isLinearSaveTool(name: string): boolean {
+  return /^mcp__.*linear.*__save_issue$/i.test(name)
+}
+
+const ISSUE_RE = /https:\/\/linear\.app\/[\w.-]+\/issue\/([A-Z][A-Z0-9]*-\d+)(?:\/[\w.-]*)?/g
+
+/**
+ * Linear issue links in a piece of text (a save_issue result). The identifier
+ * comes out of the URL, so it works on any result shape; the title is taken
+ * from the JSON when there is exactly one issue in the text.
+ */
+export function issueLinksIn(text: string): IssueLink[] {
+  const out: IssueLink[] = []
+  for (const m of text.matchAll(ISSUE_RE)) {
+    const url = m[0].replace(/[).,;]+$/, '')
+    if (!out.some((i) => i.key === m[1])) out.push({ key: m[1], url })
+  }
+  if (out.length === 1) {
+    const t = /"title"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(text)
+    if (t) {
+      try {
+        out[0].title = JSON.parse(`"${t[1]}"`)
+      } catch {
+        out[0].title = t[1]
+      }
+    }
+  }
+  return out
+}
+
+/** The text of the tool_result blocks with these ids, plus the structured result. */
+export function toolResultText(rec: TranscriptRecord, ids: Set<string>): string {
+  const parts: string[] = []
+  const content = rec.message?.content
+  if (Array.isArray(content)) {
+    for (const blk of content) {
+      if (blk?.type !== 'tool_result' || !ids.has(String(blk.tool_use_id))) continue
+      const c = blk.content
+      if (typeof c === 'string') parts.push(c)
+      else if (Array.isArray(c)) for (const x of c) if (typeof x?.text === 'string') parts.push(x.text)
+    }
+  }
+  if (parts.length && rec.toolUseResult !== undefined) {
+    parts.push(typeof rec.toolUseResult === 'string' ? rec.toolUseResult : JSON.stringify(rec.toolUseResult))
+  }
+  return parts.join('\n')
 }
 
 /** tool_result ids in a user record — which tool_use calls just resolved. */
